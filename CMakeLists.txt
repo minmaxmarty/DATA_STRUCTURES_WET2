@@ -9,4 +9,5 @@ add_executable(DATA_STRUCTURES_WET2
         dspotify25b2.cpp
         dspotify25b2.h
         main25b2.cpp
-        wet2util.h)
+        wet2util.h
+        hashTable.h)
