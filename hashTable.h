@@ -2,8 +2,29 @@
 // Created by areg1 on 6/22/2025.
 //
 
+
 #ifndef HASHTABLE_H
 #define HASHTABLE_H
+
+#include <exception>
+
+#include "myExceptions.h"
+
+template<class A, class B>
+class pair {
+    A m_object_1;
+    B m_object_2;
+
+public:
+    pair() = default;
+    pair(const A& first, const B& second) : m_object_1(first), m_object_2(second) {}
+    pair(const pair& other) : m_object_1(other.first()), m_object_2(other.second()) {}
+    pair& operator=(const pair& other) = default;
+    void setFirst(const A& data) { m_object_1 = data; }
+    void setSecond(const B& data) { m_object_2 = data; }
+    A& first() const { return m_object_1; }
+    B& second() const { return m_object_2; }
+};
 
 template <typename K, typename D>
 class linkedList;
@@ -13,9 +34,10 @@ class node {
     K m_key;
     D m_data;
     node* m_next;
+    node* m_prev;
 
 public:
-    node(K key, D data, node* next = nullptr) : m_key(key), m_data(data), m_next(next) {}
+    node(K key, D data, node* next = nullptr, node* prev = nullptr) : m_key(key), m_data(data), m_next(next), m_prev(prev) {}
 };
 
 template <typename K, typename D>
@@ -32,6 +54,7 @@ class hashTable {
 
 public:
     hashTable();
+    ~hashTable();
     void insert(const K& key, const D& data);
     void remove(const K& key);
     node<K, D>* find(const K& key) const;
@@ -41,16 +64,32 @@ public:
 template <typename K, typename D>
 class linkedList {
     friend hashTable<K, D>;
-    node<K, D>* m_head = nullptr;
-    node<K, D>* m_tail = nullptr;
-    int m_size = 0;
+    node<K, D>* m_head;
+    node<K, D>* m_tail;
+    int m_size;
 
 public:
+    linkedList() : m_head(nullptr), m_tail(nullptr), m_size(0) {};
     linkedList(node<K, D>* head, node<K, D>* tail, int size) : m_head(head), m_tail(tail) , m_size(size) {}
     ~linkedList();
     node<K, D>* find(const K& key) const;
     void insert(const K& key, const D& data);
     void remove(const K& key);
+
+    pair<K, D> pop();
+};
+
+template <typename D>
+class setNode {
+    D m_data;
+    setNode* m_parent;
+    int m_size = 1;
+
+public:
+    setNode(const D& data) : m_data(data), m_parent(this) {}
+    setNode* findRoot();
+    void compress(setNode *root);
+    static setNode* unite(setNode* a, setNode* b);
 };
 
 // ----------------------------------- hashTable ----------------------------------- //
@@ -61,25 +100,42 @@ hashTable<K, D>::hashTable() {
 }
 
 template<typename K, typename D>
+hashTable<K, D>::~hashTable() {
+    for (int i = 0; i < m_bucket; ++i) {
+        delete m_table[i];
+    }
+    delete[] m_table;
+}
+
+template<typename K, typename D>
 int hashTable<K, D>::hashFunction(const K &key) const {
     return key % m_bucket;
 }
 
 template<typename K, typename D>
 void hashTable<K, D>::resize() {
-    const int newBucketSize = m_size == m_bucket
+    const int newBucketSize = m_size >= m_bucket
                       ? m_bucket * RESIZE_FACTOR
-                      : m_size == 0.25 * m_bucket
+                      : (m_size <= 0.25 * m_bucket && m_bucket > INITIAL_SIZE)
                             ? m_bucket / RESIZE_FACTOR
                             : -1;
     if (newBucketSize != -1) {
-        auto newTable = new linkedList<K, D>*[newBucketSize];
-        for (int i = 0; i < m_bucket; ++i) {
-            newTable[i] = m_table[i];
+        auto newTable = new linkedList<K, D>*[newBucketSize]();
+        const int oldBucketSize = m_bucket;
+        m_bucket = newBucketSize;
+        for (int i = 0; i < oldBucketSize; ++i) {
+            while (m_table[i] != nullptr && m_table[i]->m_size != 0) {
+                pair<K, D> toMove = m_table[i]->pop();
+                int index = hashFunction(toMove.first());
+                if (newTable[index] == nullptr) {
+                    newTable[index] = new linkedList<K, D>();
+                }
+                newTable[index]->insert(toMove.first(), toMove.second());
+            }
+            delete m_table[i];
         }
         delete[] m_table;
         m_table = newTable;
-        m_bucket = newBucketSize;
     }
 }
 
@@ -91,21 +147,33 @@ void hashTable<K, D>::insert(const K &key, const D &data) {
     }
     m_table[index]->insert(key, data);
     m_size++;
+    resize();
 }
 
 template<typename K, typename D>
 void hashTable<K, D>::remove(const K &key) {
     int index = hashFunction(key);
-    if (m_table[index] != nullptr) {
-        m_table[index]->remove(key);
-        return;
+    try {
+        if (m_table[index] != nullptr) {
+            m_table[index]->remove(key);
+            if (m_table[index]->m_size == 0) {
+                delete m_table[index];
+                m_table[index] = nullptr;
+            }
+            m_size--;
+            resize();
+            return;
+        }
+    } catch (key_doesnt_exist) {
+        throw key_doesnt_exist();
     }
-    // TODO: add doesn't exist exception
+    throw key_doesnt_exist();
 }
 
 template<typename K, typename D>
 node<K, D> * hashTable<K, D>::find(const K &key) const {
     const int index = hashFunction(key);
+    if (m_table[index] == nullptr) return nullptr;
     return m_table[index]->find(key);
 }
 
@@ -127,6 +195,7 @@ void linkedList<K, D>::insert(const K &key, const D &data) {
     auto* newNode = new node<K, D>(key, data);
     if (m_head != nullptr) { // if the head exists
         m_tail->m_next = newNode;
+        newNode->m_prev = m_tail;
     }
     else { // if head doesn't exist, add a new one
         m_head = newNode;
@@ -137,23 +206,42 @@ void linkedList<K, D>::insert(const K &key, const D &data) {
 
 template<typename K, typename D>
 void linkedList<K, D>::remove(const K &key) {
-    node<K, D>* prev = nullptr; // easy algo
     node<K, D>* cur = m_head;
     while (cur != nullptr) {
         if (cur->m_key == key) {
-            if (prev != nullptr) {
-                prev->m_next = cur->m_next;
-            }
-            else {
-                m_head = cur->m_next;
-            }
-            cur->m_next = nullptr;
+            node<K, D>* prev = cur->m_prev;
+            node<K, D>* next = cur->m_next;
+
+            if (prev != nullptr) prev->m_next = next;
+            if (next != nullptr) next->m_prev = prev;
+
+            if (cur == m_head) m_head = next;
+            if (cur == m_tail) m_tail = prev;
+
             delete cur;
+            m_size--;
+            return;
         }
-        prev = cur;
         cur = cur->m_next;
     }
+    if (cur == nullptr) throw key_doesnt_exist();
+
+}
+
+template<typename K, typename D>
+pair<K, D> linkedList<K, D>::pop() {
+    if (m_size == 0) {
+        throw out_of_range();
+    }
+    node<K, D>* victim = m_tail;
+    pair<K, D> result(victim->m_key, victim->m_data);
+    m_tail = victim->m_prev;
+    if (m_tail == nullptr) m_head = nullptr;
+    else m_tail->m_next = nullptr;
+    victim->m_prev = nullptr;
+    delete victim;
     m_size--;
+    return result;
 }
 
 template<typename K, typename D>
@@ -163,8 +251,50 @@ node<K, D> * linkedList<K, D>::find(const K &key) const {
         if (cur->m_key == key) {
             return cur;
         }
+        cur = cur->m_next;
     }
     return nullptr;
+}
+
+// ------------------------------------- setNode ------------------------------------- //
+
+template<typename D>
+setNode<D> * setNode<D>::findRoot() {
+    setNode* cur = this;
+    while (cur != cur->m_parent) {
+        cur = cur->m_parent;
+    }
+    setNode* root = cur;
+    compress(root);
+    return root;
+}
+
+template<typename D>
+void setNode<D>::compress(setNode *root) {
+    setNode* cur = this;
+    setNode* next = nullptr;
+    while (cur != cur->m_parent) {
+        next = cur->m_parent;
+        cur->m_parent = root;
+        cur = next;
+    }
+}
+
+template<typename D>
+setNode<D> * setNode<D>::unite(setNode *a, setNode *b) {
+    a = a->findRoot();
+    b = b->findRoot();
+
+    if (a->m_size < b->m_size) {
+        setNode* temp = a;
+        a = b;
+        b = temp;
+    }
+
+    b->m_parent = a;
+    a->m_size += b->m_size;
+
+    return a;
 }
 
 #endif //HASHTABLE_H
