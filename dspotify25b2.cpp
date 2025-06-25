@@ -4,7 +4,7 @@
 #include "dspotify25b2.h"
 
 
-DSpotify::DSpotify() = default;
+DSpotify::DSpotify() : m_bookKeeper(nullptr) {}
 
 DSpotify::~DSpotify() {
     setNode<int>* cur = m_bookKeeper;
@@ -19,17 +19,18 @@ DSpotify::~DSpotify() {
 StatusType DSpotify::addGenre(int genreId){
     if (genreId <=0) return StatusType::INVALID_INPUT;
     if (m_genreHT.find(genreId) != nullptr) return StatusType::FAILURE;
-    setNode<int>* newGenreSetNode;
+    setNode<int>* newGenreSetNode = nullptr;
     try {
         newGenreSetNode = new setNode(genreId);
-        newGenreSetNode->setNextAlloc(m_bookKeeper);
-        m_bookKeeper = newGenreSetNode;
-
         m_genreHT.insert(genreId, newGenreSetNode);
     } catch (std::bad_alloc) {
         delete newGenreSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
+
+    newGenreSetNode->setNextAlloc(m_bookKeeper);
+    m_bookKeeper = newGenreSetNode;
+
     return StatusType::SUCCESS;
 }
 
@@ -40,17 +41,17 @@ StatusType DSpotify::addSong(int songId, int genreId){
     node<int, setNode<int>*>* song;
 
     if (genre == nullptr || m_songHT.find(songId) != nullptr) return StatusType::FAILURE;
-    setNode<int>* newSongSetNode;
+    setNode<int>* newSongSetNode = nullptr;
     try {
         newSongSetNode = new setNode(songId);
-        newSongSetNode->setNextAlloc(m_bookKeeper);
-        m_bookKeeper = newSongSetNode;
-
         song = m_songHT.insert(songId, newSongSetNode);
     } catch (std::bad_alloc) {
         delete newSongSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
+
+    newSongSetNode->setNextAlloc(m_bookKeeper);
+    m_bookKeeper = newSongSetNode;
 
     setNode<int>* genreSetNode = genre->m_data;
     setNode<int>* songSetNode = song->m_data;
@@ -71,17 +72,17 @@ StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     if (genre1 == nullptr || genre2 == nullptr || m_genreHT.find(genreId3) != nullptr)
         return StatusType::FAILURE;
 
-    setNode<int>* newGenreSetNode;
+    setNode<int>* newGenreSetNode = nullptr;
     try {
         newGenreSetNode = new setNode(genreId3);
-        newGenreSetNode->setNextAlloc(m_bookKeeper);
-        m_bookKeeper = newGenreSetNode;
-
         m_genreHT.insert(genreId3, newGenreSetNode);
     } catch (std::bad_alloc) {
         delete newGenreSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
+
+    newGenreSetNode->setNextAlloc(m_bookKeeper);
+    m_bookKeeper = newGenreSetNode;
 
     setNode<int>* genreSetNode1 = genre1->m_data;
     setNode<int>* genreSetNode2 = genre2->m_data;

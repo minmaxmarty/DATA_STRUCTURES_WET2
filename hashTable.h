@@ -261,7 +261,7 @@ class setNode {
     setNode* m_parent;
     setNode* m_nextAlloc = nullptr;
     int m_size = 1;
-    int m_uniteCounter = 0;
+    int m_uniteCounter = 1;
 
 public:
     explicit setNode(D data) : m_data(data), m_parent(this) {}
