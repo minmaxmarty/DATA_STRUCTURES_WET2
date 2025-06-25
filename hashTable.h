@@ -10,6 +10,12 @@
 
 #include "myExceptions.h"
 
+template <typename K, typename D>
+class linkedList;
+
+// ------------------------------------- pair ------------------------------------- //
+
+
 template<class A, class B>
 class pair {
     A m_object_1;
@@ -26,19 +32,19 @@ public:
     B& second() const { return m_object_2; }
 };
 
-template <typename K, typename D>
-class linkedList;
+// ------------------------------------- node ------------------------------------- //
 
 template <typename K, typename D>
-class node {
+struct node {
     K m_key;
     D m_data;
     node* m_next;
     node* m_prev;
 
-public:
     node(K key, D data, node* next = nullptr, node* prev = nullptr) : m_key(key), m_data(data), m_next(next), m_prev(prev) {}
 };
+
+// ----------------------------------- hashTable ----------------------------------- //
 
 template <typename K, typename D>
 class hashTable {
@@ -55,44 +61,12 @@ class hashTable {
 public:
     hashTable();
     ~hashTable();
-    void insert(const K& key, const D& data);
+
+    node<K, D> *insert(const K &key, const D &data);
     void remove(const K& key);
     node<K, D>* find(const K& key) const;
 
 };
-
-template <typename K, typename D>
-class linkedList {
-    friend hashTable<K, D>;
-    node<K, D>* m_head;
-    node<K, D>* m_tail;
-    int m_size;
-
-public:
-    linkedList() : m_head(nullptr), m_tail(nullptr), m_size(0) {};
-    linkedList(node<K, D>* head, node<K, D>* tail, int size) : m_head(head), m_tail(tail) , m_size(size) {}
-    ~linkedList();
-    node<K, D>* find(const K& key) const;
-    void insert(const K& key, const D& data);
-    void remove(const K& key);
-
-    pair<K, D> pop();
-};
-
-template <typename D>
-class setNode {
-    D m_data;
-    setNode* m_parent;
-    int m_size = 1;
-
-public:
-    setNode(const D& data) : m_data(data), m_parent(this) {}
-    setNode* findRoot();
-    void compress(setNode *root);
-    static setNode* unite(setNode* a, setNode* b);
-};
-
-// ----------------------------------- hashTable ----------------------------------- //
 
 template<typename K, typename D>
 hashTable<K, D>::hashTable() {
@@ -140,14 +114,16 @@ void hashTable<K, D>::resize() {
 }
 
 template<typename K, typename D>
-void hashTable<K, D>::insert(const K &key, const D &data) {
+node<K, D> *hashTable<K, D>::insert(const K &key, const D &data) {
     int index = hashFunction(key);
     if (m_table[index] == nullptr) {
         m_table[index] = new linkedList<K, D>();
     }
-    m_table[index]->insert(key, data);
+    node<K, D>* newNode = m_table[index]->insert(key, data);
     m_size++;
     resize();
+
+    return newNode;
 }
 
 template<typename K, typename D>
@@ -179,6 +155,25 @@ node<K, D> * hashTable<K, D>::find(const K &key) const {
 
 // ---------------------------------- linkedList ---------------------------------- //
 
+template <typename K, typename D>
+class linkedList {
+    friend hashTable<K, D>;
+    node<K, D>* m_head;
+    node<K, D>* m_tail;
+    int m_size;
+
+public:
+    linkedList() : m_head(nullptr), m_tail(nullptr), m_size(0) {};
+    linkedList(node<K, D>* head, node<K, D>* tail, int size) : m_head(head), m_tail(tail) , m_size(size) {}
+    ~linkedList();
+    node<K, D>* find(const K& key) const;
+
+    node<K, D> *insert(const K &key, const D &data);
+    void remove(const K& key);
+
+    pair<K, D> pop();
+};
+
 template<typename K, typename D>
 linkedList<K, D>::~linkedList() {
     node<K, D>* cur = m_head;
@@ -191,7 +186,7 @@ linkedList<K, D>::~linkedList() {
 }
 
 template<typename K, typename D>
-void linkedList<K, D>::insert(const K &key, const D &data) {
+node<K, D> *linkedList<K, D>::insert(const K &key, const D &data) {
     auto* newNode = new node<K, D>(key, data);
     if (m_head != nullptr) { // if the head exists
         m_tail->m_next = newNode;
@@ -202,6 +197,8 @@ void linkedList<K, D>::insert(const K &key, const D &data) {
     }
     m_tail = newNode;
     m_size++;
+
+    return newNode;
 }
 
 template<typename K, typename D>
@@ -258,6 +255,29 @@ node<K, D> * linkedList<K, D>::find(const K &key) const {
 
 // ------------------------------------- setNode ------------------------------------- //
 
+template <typename D>
+class setNode {
+    D m_data;
+    setNode* m_parent;
+    setNode* m_nextAlloc = nullptr;
+    int m_size = 1;
+    int m_uniteCounter = 0;
+
+public:
+    explicit setNode(D data) : m_data(data), m_parent(this) {}
+    setNode* findRoot();
+    void compress(setNode *root);
+    static setNode* uniteBySize(setNode* A, setNode* B);
+    static setNode* unite(setNode* into, setNode* from);
+    setNode* getNextAlloc() const;
+    void setNextAlloc(setNode* bookKeeper);
+    void incUniteCounter();
+    const D& getData() const;
+    int getSize() const;
+    int getUniteCounter() const;
+    setNode* getParent() const;
+};
+
 template<typename D>
 setNode<D> * setNode<D>::findRoot() {
     setNode* cur = this;
@@ -281,20 +301,67 @@ void setNode<D>::compress(setNode *root) {
 }
 
 template<typename D>
-setNode<D> * setNode<D>::unite(setNode *a, setNode *b) {
-    a = a->findRoot();
-    b = b->findRoot();
+setNode<D> * setNode<D>::uniteBySize(setNode *A, setNode *B) {
+    A = A->findRoot();
+    B = B->findRoot();
 
-    if (a->m_size < b->m_size) {
-        setNode* temp = a;
-        a = b;
-        b = temp;
+    if (A->m_size < B->m_size) {
+        setNode* temp = A;
+        A = B;
+        B = temp;
     }
 
-    b->m_parent = a;
-    a->m_size += b->m_size;
+    B->m_parent = A;
+    A->m_size += B->m_size;
 
-    return a;
+    return A;
+}
+
+template<typename D>
+setNode<D> * setNode<D>::unite(setNode *into, setNode *from) {
+    into = into->findRoot();
+    from = from->findRoot();
+
+    from->m_parent = into;
+    into->m_size += from->m_size;
+    into->m_uniteCounter += from->m_uniteCounter;
+
+    return into;
+}
+
+template<typename D>
+setNode<D> * setNode<D>::getNextAlloc() const {
+    return m_nextAlloc;
+}
+
+template<typename D>
+void setNode<D>::setNextAlloc(setNode *bookKeeper) {
+    m_nextAlloc = bookKeeper;
+}
+
+template<typename D>
+void setNode<D>::incUniteCounter() {
+    m_uniteCounter++;
+}
+
+template<typename D>
+const D & setNode<D>::getData() const {
+    return m_data;
+}
+
+template<typename D>
+int setNode<D>::getSize() const {
+    return m_size;
+}
+
+template<typename D>
+int setNode<D>::getUniteCounter() const {
+    return m_uniteCounter;
+}
+
+template<typename D>
+setNode<D> * setNode<D>::getParent() const {
+    return m_parent;
 }
 
 #endif //HASHTABLE_H

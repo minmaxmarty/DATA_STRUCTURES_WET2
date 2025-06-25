@@ -19,4 +19,10 @@ class key_doesnt_exist : std::exception {
     }
 };
 
+class key_already_exists : std::exception {
+    const char* what() const noexcept override {
+        return "key already exists";
+    }
+};
+
 #endif //MYEXCEPTIONS_H

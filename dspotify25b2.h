@@ -14,12 +14,18 @@
 #define DSPOTIFY25SPRING_WET2_H_
 
 #include "wet2util.h"
+#include "hashTable.h"
 
 class DSpotify {
 private:
     //
     // Here you may add anything you want
     //
+
+    hashTable<int, setNode<int>*> m_genreHT;
+    hashTable<int, setNode<int>*> m_songHT;
+
+    setNode<int>* m_bookKeeper;
     
 public:
     // <DO-NOT-MODIFY> {
