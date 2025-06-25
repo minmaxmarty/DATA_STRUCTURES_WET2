@@ -23,7 +23,7 @@ StatusType DSpotify::addGenre(int genreId){
     try {
         newGenreSetNode = new setNode(genreId);
         m_genreHT.insert(genreId, newGenreSetNode);
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         delete newGenreSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
@@ -45,7 +45,7 @@ StatusType DSpotify::addSong(int songId, int genreId){
     try {
         newSongSetNode = new setNode(songId);
         song = m_songHT.insert(songId, newSongSetNode);
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         delete newSongSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
@@ -76,7 +76,7 @@ StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     try {
         newGenreSetNode = new setNode(genreId3);
         m_genreHT.insert(genreId3, newGenreSetNode);
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         delete newGenreSetNode;
         return StatusType::ALLOCATION_ERROR;
     }

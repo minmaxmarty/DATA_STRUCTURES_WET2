@@ -6,8 +6,6 @@
 #ifndef HASHTABLE_H
 #define HASHTABLE_H
 
-#include <exception>
-
 #include "myExceptions.h"
 
 template <typename K, typename D>
@@ -140,7 +138,7 @@ void hashTable<K, D>::remove(const K &key) {
             resize();
             return;
         }
-    } catch (key_doesnt_exist) {
+    } catch (const key_doesnt_exist&) {
         throw key_doesnt_exist();
     }
     throw key_doesnt_exist();
@@ -281,8 +279,10 @@ public:
 template<typename D>
 setNode<D> * setNode<D>::findRoot() {
     setNode* cur = this;
+    int counter = 0; // TODO: add counter to count height from song to genre
     while (cur != cur->m_parent) {
         cur = cur->m_parent;
+        counter++;
     }
     setNode* root = cur;
     compress(root);
