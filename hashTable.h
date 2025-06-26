@@ -26,12 +26,14 @@ public:
     pair& operator=(const pair& other) = default;
     void setFirst(const A& data) { m_object_1 = data; }
     void setSecond(const B& data) { m_object_2 = data; }
-    A& first() const { return m_object_1; }
-    B& second() const { return m_object_2; }
+    const A& first() const { return m_object_1; }
+    const B& second() const { return m_object_2; }
 };
 
 // ------------------------------------- node ------------------------------------- //
 
+
+//TODO I think there isn`t next and prev because  it can be some children
 template <typename K, typename D>
 struct node {
     K m_key;
@@ -166,7 +168,7 @@ public:
     ~linkedList();
     node<K, D>* find(const K& key) const;
 
-    node<K, D> *insert(const K &key, const D &data);
+    node<K, D>* insert(const K &key, const D &data);
     void remove(const K& key);
 
     pair<K, D> pop();
@@ -184,7 +186,7 @@ linkedList<K, D>::~linkedList() {
 }
 
 template<typename K, typename D>
-node<K, D> *linkedList<K, D>::insert(const K &key, const D &data) {
+node<K, D>* linkedList<K, D>::insert(const K &key, const D &data) {
     auto* newNode = new node<K, D>(key, data);
     if (m_head != nullptr) { // if the head exists
         m_tail->m_next = newNode;
@@ -220,22 +222,31 @@ void linkedList<K, D>::remove(const K &key) {
         cur = cur->m_next;
     }
     if (cur == nullptr) throw key_doesnt_exist();
-
 }
 
+
+//TODO sonething strange that remove and pop have different return values
+//TODO why i have pair and node, why i don't use pair in node?
 template<typename K, typename D>
 pair<K, D> linkedList<K, D>::pop() {
     if (m_size == 0) {
         throw out_of_range();
     }
-    node<K, D>* victim = m_tail;
-    pair<K, D> result(victim->m_key, victim->m_data);
-    m_tail = victim->m_prev;
-    if (m_tail == nullptr) m_head = nullptr;
-    else m_tail->m_next = nullptr;
-    victim->m_prev = nullptr;
-    delete victim;
+    node<K, D>* node_to_remove = m_tail;
+    pair<K, D> result(node_to_remove->m_key, node_to_remove->m_data);
+
+    m_tail = node_to_remove->m_prev;
+    if (m_tail == nullptr) {
+        m_head = nullptr;
+    } else {
+        m_tail->m_next = nullptr;
+    }
+    //TODO check it; it is useless
+    //node_to_remove->m_prev = nullptr;
+
+    delete node_to_remove;
     m_size--;
+
     return result;
 }
 
@@ -254,45 +265,54 @@ node<K, D> * linkedList<K, D>::find(const K &key) const {
 // ------------------------------------- setNode ------------------------------------- //
 
 template <typename D>
-class setNode {
+class tableNode {
     D m_data;
-    setNode* m_parent;
-    setNode* m_nextAlloc = nullptr;
-    int m_size = 1;
+    tableNode* m_parent;
+
     int m_uniteCounter = 1;
 
+    
+    //TODO why I need nextAlloc? I think it is the same as bookKeeper
+    // setNode* m_nextAlloc = nullptr;
+
+    // int m_size = 1;
 public:
-    explicit setNode(D data) : m_data(data), m_parent(this) {}
-    setNode* findRoot();
-    void compress(setNode *root);
-    static setNode* uniteBySize(setNode* A, setNode* B);
-    static setNode* unite(setNode* into, setNode* from);
-    setNode* getNextAlloc() const;
-    void setNextAlloc(setNode* bookKeeper);
+    explicit tableNode(D data) : m_data(data), m_parent(this) {}
+
+    tableNode* findRoot();
+    void compress(tableNode *root);
+
+    static tableNode* uniteBySize(tableNode* A, tableNode* B);
+    static tableNode* unite(tableNode* into, tableNode* from);
+   
     void incUniteCounter();
+
     const D& getData() const;
-    int getSize() const;
     int getUniteCounter() const;
-    setNode* getParent() const;
+    tableNode* getParent() const;
+
+     // setNode* getNextAlloc() const;
+    // void setNextAlloc(setNode* bookKeeper);
+    // int getSize() const;
 };
 
 template<typename D>
-setNode<D> * setNode<D>::findRoot() {
-    setNode* cur = this;
+tableNode<D> * tableNode<D>::findRoot() {
+    tableNode* cur = this;
     int counter = 0; // TODO: add counter to count height from song to genre
     while (cur != cur->m_parent) {
         cur = cur->m_parent;
         counter++;
     }
-    setNode* root = cur;
+    tableNode* root = cur;
     compress(root);
     return root;
 }
 
 template<typename D>
-void setNode<D>::compress(setNode *root) {
-    setNode* cur = this;
-    setNode* next = nullptr;
+void tableNode<D>::compress(tableNode *root) {
+    tableNode* cur = this;
+    tableNode* next = nullptr;
     while (cur != cur->m_parent) {
         next = cur->m_parent;
         cur->m_parent = root;
@@ -300,68 +320,108 @@ void setNode<D>::compress(setNode *root) {
     }
 }
 
-template<typename D>
-setNode<D> * setNode<D>::uniteBySize(setNode *A, setNode *B) {
-    A = A->findRoot();
-    B = B->findRoot();
 
-    if (A->m_size < B->m_size) {
-        setNode* temp = A;
-        A = B;
-        B = temp;
+// template<typename D>
+// setNode<D> * setNode<D>::uniteBySize(setNode *A, setNode *B) {
+//     aRoot = A->findRoot();
+//     bRoot = B->findRoot();
+
+//     if (aRoot->m_size < bRoot->m_size) {
+//         setNode* temp = aRoot;
+//         aRoot = bRoot;
+//         bRoot = temp;
+//     }
+
+//     bRoot->m_parent = aRoot;
+//     aRoot->m_size += bRoot->m_size;
+
+//     return aRoot;
+// }
+
+
+//TODO decide which uniteBySize to use
+//TODO how we implement nodes of genres and songs, maybe need to go to genre node
+template<typename D>
+tableNode<D> * tableNode<D>::uniteBySize(tableNode *A, tableNode *B) {
+    tableNode* aRoot = A->findRoot();
+    tableNode* bRoot = B->findRoot();
+
+    if (aRoot->m_size < bRoot->m_size) {
+        unite(bRoot, aRoot);
+
+        return bRoot;
+    } else {
+        unite(aRoot, bRoot);
+
+        return aRoot;
     }
-
-    B->m_parent = A;
-    A->m_size += B->m_size;
-
-    return A;
 }
 
 template<typename D>
-setNode<D> * setNode<D>::unite(setNode *into, setNode *from) {
-    into = into->findRoot();
-    from = from->findRoot();
+tableNode<D> * tableNode<D>::unite(tableNode *into, tableNode *from) {
+    tableNode* intoRoot = into->findRoot();
+    tableNode* fromRoot = from->findRoot();
 
-    from->m_parent = into;
-    into->m_size += from->m_size;
-    into->m_uniteCounter += from->m_uniteCounter;
+    fromRoot->m_parent = intoRoot;
+    intoRoot->m_size += fromRoot->m_si
+    intoRoot->m_uniteCounter += fromRoot->m_uniteCounter;
 
-    return into;
+    return intoRoot;
 }
 
-template<typename D>
-setNode<D> * setNode<D>::getNextAlloc() const {
-    return m_nextAlloc;
-}
+// template<typename D>
+// setNode<D> * setNode<D>::getNextAlloc() const {
+//     return m_nextAlloc;
+// }
+
+// template<typename D>
+// void setNode<D>::setNextAlloc(setNode *bookKeeper) {
+//     m_nextAlloc = bookKeeper;
+// }
 
 template<typename D>
-void setNode<D>::setNextAlloc(setNode *bookKeeper) {
-    m_nextAlloc = bookKeeper;
-}
-
-template<typename D>
-void setNode<D>::incUniteCounter() {
+void tableNode<D>::incUniteCounter() {
     m_uniteCounter++;
 }
 
 template<typename D>
-const D & setNode<D>::getData() const {
+const D & tableNode<D>::getData() const {
     return m_data;
 }
 
-template<typename D>
-int setNode<D>::getSize() const {
-    return m_size;
-}
+// template<typename D>
+// int setNode<D>::getSize() const {
+//     return m_size;
+// }
 
 template<typename D>
-int setNode<D>::getUniteCounter() const {
+int tableNode<D>::getUniteCounter() const {
     return m_uniteCounter;
 }
 
 template<typename D>
-setNode<D> * setNode<D>::getParent() const {
+tableNode<D> * tableNode<D>::getParent() const {
     return m_parent;
 }
 
 #endif //HASHTABLE_H
+
+
+// ------------------------------------- songNode ------------------------------------- //
+
+template<typename D>
+class songNode : public tableNode<D> {
+public:
+    songNode(const D &data) : tableNode<D>(data) {}
+};
+
+// ------------------------------------- genreNode ------------------------------------- //
+
+template<typename D>
+class genreNode : public tableNode<D> {
+    
+    int numberOfSongs = 1;
+public:
+    genreNode(const D &data) : tableNode<D>(data) {}
+    int getSize() const { return numberOfSongs; }
+};
