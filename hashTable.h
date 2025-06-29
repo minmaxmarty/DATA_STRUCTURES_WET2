@@ -164,12 +164,13 @@ std::shared_ptr<setNode<D>> setNode<D>::findRoot() {
     compress(root, total_merges);
     return root;
 }
+template<typename D>
 void setNode<D>::compress(std::shared_ptr<setNode<D>> root, int depth) {
     std::shared_ptr<setNode<D>> cur = this->shared_from_this();
     while (cur != root) {
-        auto &next = cur->m_parent;
+        auto next = cur->m_parent;
         int oldDepth = cur->m_uniteCounter;
-        cur->m_parent = root;
+        cur->setParent(root);
         cur->m_uniteCounter = depth;
         depth -= oldDepth;
         cur = next;
