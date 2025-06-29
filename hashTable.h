@@ -263,88 +263,65 @@ node<K, D> * linkedList<K, D>::find(const K &key) const {
 }
 
 // ------------------------------------- setNode ------------------------------------- //
-
 template <typename D>
-class tableNode {
+class setNode {
     D m_data;
-    tableNode* m_parent;
+    setNode<D>* m_parent;
 
     int m_uniteCounter = 1;
-
-    
-    //TODO why I need nextAlloc? I think it is the same as bookKeeper
-    // setNode* m_nextAlloc = nullptr;
-
-    // int m_size = 1;
 public:
-    explicit tableNode(D data) : m_data(data), m_parent(this) {}
+    explicit setNode(D data) : m_data(data), m_parent(this) {}
 
-    tableNode* findRoot();
-    void compress(tableNode *root);
+    setNode* findRoot();
+    void compressAndCalc(setNode<D>* root, int counter);
 
-    static tableNode* uniteBySize(tableNode* A, tableNode* B);
-    static tableNode* unite(tableNode* into, tableNode* from);
-   
-    void incUniteCounter();
+    static setNode<D>* uniteBySize(setNode<D>* A, setNode<D>* B);
+    static setNode<D>* unite(setNode<D>* into, setNode<D>* from);
+
+    void setUniteCounter(int counter);
 
     const D& getData() const;
     int getUniteCounter() const;
-    tableNode* getParent() const;
-
-     // setNode* getNextAlloc() const;
-    // void setNextAlloc(setNode* bookKeeper);
-    // int getSize() const;
+    setNode<D>* getParent() const;
 };
 
 template<typename D>
-tableNode<D> * tableNode<D>::findRoot() {
-    tableNode* cur = this;
-    int counter = 0; // TODO: add counter to count height from song to genre
+setNode<D> * setNode<D>::findRoot() {
+    setNode<D>* cur = this;
+    int uniteNum = 0;
     while (cur != cur->m_parent) {
+        uniteNum += cur->getUniteCounter();
         cur = cur->m_parent;
-        counter++;
     }
-    tableNode* root = cur;
-    compress(root);
+    setNode<D>* root = cur;
+    compressAndCalc(root, uniteNum);
     return root;
 }
 
 template<typename D>
-void tableNode<D>::compress(tableNode *root) {
-    tableNode* cur = this;
-    tableNode* next = nullptr;
+void setNode<D>::compressAndCalc(setNode<D>* root, int uniteNum) {
+    setNode<D>* cur = this;
+    setNode<D>* next = nullptr;
+
     while (cur != cur->m_parent) {
         next = cur->m_parent;
+        int oldUniteCounter = cur->getUniteCounter();
+
         cur->m_parent = root;
+        cur->setUniteCounter(uniteNum);
+
+        uniteNum -= oldUniteCounter;
         cur = next;
     }
 }
 
 
-// template<typename D>
-// setNode<D> * setNode<D>::uniteBySize(setNode *A, setNode *B) {
-//     aRoot = A->findRoot();
-//     bRoot = B->findRoot();
-
-//     if (aRoot->m_size < bRoot->m_size) {
-//         setNode* temp = aRoot;
-//         aRoot = bRoot;
-//         bRoot = temp;
-//     }
-
-//     bRoot->m_parent = aRoot;
-//     aRoot->m_size += bRoot->m_size;
-
-//     return aRoot;
-// }
-
-
 //TODO decide which uniteBySize to use
 //TODO how we implement nodes of genres and songs, maybe need to go to genre node
 template<typename D>
-tableNode<D> * tableNode<D>::uniteBySize(tableNode *A, tableNode *B) {
-    tableNode* aRoot = A->findRoot();
-    tableNode* bRoot = B->findRoot();
+setNode<D> * setNode<D>::uniteBySize(setNode<D> *A, setNode<D> *B) {
+    setNode<D>* aRoot = A->findRoot();
+    setNode<D>* bRoot = B->findRoot();
 
     if (aRoot->m_size < bRoot->m_size) {
         unite(bRoot, aRoot);
@@ -358,49 +335,33 @@ tableNode<D> * tableNode<D>::uniteBySize(tableNode *A, tableNode *B) {
 }
 
 template<typename D>
-tableNode<D> * tableNode<D>::unite(tableNode *into, tableNode *from) {
-    tableNode* intoRoot = into->findRoot();
-    tableNode* fromRoot = from->findRoot();
+setNode<D> * setNode<D>::unite(setNode<D> *into, setNode<D> *from) {
+    setNode<D>* intoRoot = into->findRoot();
+    setNode<D>* fromRoot = from->findRoot();
 
     fromRoot->m_parent = intoRoot;
-    intoRoot->m_size += fromRoot->m_si
-    intoRoot->m_uniteCounter += fromRoot->m_uniteCounter;
 
     return intoRoot;
 }
 
-// template<typename D>
-// setNode<D> * setNode<D>::getNextAlloc() const {
-//     return m_nextAlloc;
-// }
-
-// template<typename D>
-// void setNode<D>::setNextAlloc(setNode *bookKeeper) {
-//     m_nextAlloc = bookKeeper;
-// }
-
 template<typename D>
-void tableNode<D>::incUniteCounter() {
-    m_uniteCounter++;
+void setNode<D>::setUniteCounter(int counter) {
+    m_uniteCounter = counter;
 }
 
+
 template<typename D>
-const D & tableNode<D>::getData() const {
+const D & setNode<D>::getData() const {
     return m_data;
 }
 
-// template<typename D>
-// int setNode<D>::getSize() const {
-//     return m_size;
-// }
-
 template<typename D>
-int tableNode<D>::getUniteCounter() const {
+int setNode<D>::getUniteCounter() const {
     return m_uniteCounter;
 }
 
 template<typename D>
-tableNode<D> * tableNode<D>::getParent() const {
+setNode<D>* setNode<D>::getParent() const {
     return m_parent;
 }
 
@@ -410,18 +371,18 @@ tableNode<D> * tableNode<D>::getParent() const {
 // ------------------------------------- songNode ------------------------------------- //
 
 template<typename D>
-class songNode : public tableNode<D> {
+class songNode : public setNode<D> {
 public:
-    songNode(const D &data) : tableNode<D>(data) {}
+    songNode(const D &data) : setNode<D>(data) {}
 };
 
 // ------------------------------------- genreNode ------------------------------------- //
 
 template<typename D>
-class genreNode : public tableNode<D> {
-    
+class genreNode : public setNode<D> {
     int numberOfSongs = 1;
 public:
-    genreNode(const D &data) : tableNode<D>(data) {}
-    int getSize() const { return numberOfSongs; }
+    genreNode(const D &data) : setNode<D>(data) {}
+    int getNumberOfSongs() const { return numberOfSongs; }
+    void setSize(int size) { numberOfSongs = size; }
 };
