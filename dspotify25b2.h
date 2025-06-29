@@ -15,6 +15,9 @@
 
 #include "wet2util.h"
 #include "hashTable.h"
+#include <memory>
+
+using namespace std;
 
 class DSpotify {
 private:
@@ -22,10 +25,10 @@ private:
     // Here you may add anything you want
     //
 
-    hashTable<int, setNode<int>*> m_genreHT;
-    hashTable<int, setNode<int>*> m_songHT;
+    hashTable<int, shared_ptr<genreNode<int>>> m_genreHT;
+    hashTable<int, unique_ptr<songNode<int>>> m_songHT;
 
-    setNode<int>* m_bookKeeper;
+    // setNode<int>* m_bookKeeper;
     
 public:
     // <DO-NOT-MODIFY> {
