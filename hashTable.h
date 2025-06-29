@@ -1,367 +1,181 @@
-//
-// Created by areg1 on 6/22/2025.
-//
-
-
 #ifndef HASHTABLE_H
 #define HASHTABLE_H
 
 #include "myExceptions.h"
+#include <utility> // For std::move
+#include <memory>  // For std::shared_ptr, std::make_shared, and std::enable_shared_from_this
 
-template <typename K, typename D>
-class linkedList;
-
-// ------------------------------------- pair ------------------------------------- //
-
-
-template<class A, class B>
-class pair {
-    A m_object_1;
-    B m_object_2;
-
-public:
-    pair() = default;
-    pair(const A& first, const B& second) : m_object_1(first), m_object_2(second) {}
-    pair(const pair& other) : m_object_1(other.first()), m_object_2(other.second()) {}
-    pair& operator=(const pair& other) = default;
-    void setFirst(const A& data) { m_object_1 = data; }
-    void setSecond(const B& data) { m_object_2 = data; }
-    A& first() const { return m_object_1; }
-    B& second() const { return m_object_2; }
-};
-
-// ------------------------------------- node ------------------------------------- //
-
-template <typename K, typename D>
+// ------------------------------------- node (Hash Table Entry) ------------------------------------- //
+template <typename K, typename D_ptr>
 struct node {
     K m_key;
-    D m_data;
-    node* m_next;
-    node* m_prev;
+    D_ptr m_data;
+    std::shared_ptr<node<K, D_ptr>> m_next;
 
-    node(K key, D data, node* next = nullptr, node* prev = nullptr) : m_key(key), m_data(data), m_next(next), m_prev(prev) {}
+    node(K key, D_ptr data, std::shared_ptr<node<K, D_ptr>> next = nullptr)
+        : m_key(key), m_data(std::move(data)), m_next(std::move(next)) {}
 };
 
 // ----------------------------------- hashTable ----------------------------------- //
-
-template <typename K, typename D>
+template <typename K, typename D_ptr>
 class hashTable {
-    constexpr int INITIAL_SIZE = 10;
-    constexpr int RESIZE_FACTOR = 2;
+    const int INITIAL_SIZE = 17;
+    const double RESIZE_FACTOR_UP = 2.0;
+    const double RESIZE_FACTOR_DOWN = 0.5;
 
-    linkedList<K, D>** m_table;
+    std::shared_ptr<node<K, D_ptr>>* m_table;
     int m_bucket = INITIAL_SIZE;
     int m_size = 0;
-    int hashFunction(const K& key) const;
-    void resize();
 
+    int hashFunction(const K& key) const;
+    void resize(double factor);
 
 public:
     hashTable();
     ~hashTable();
-
-    node<K, D> *insert(const K &key, const D &data);
+    std::shared_ptr<node<K, D_ptr>> insert(const K &key, D_ptr data);
     void remove(const K& key);
-    node<K, D>* find(const K& key) const;
-
+    std::shared_ptr<node<K, D_ptr>> find(const K& key) const;
 };
 
-template<typename K, typename D>
-hashTable<K, D>::hashTable() {
-    m_table = new linkedList<K, D>*[m_bucket]();
+template<typename K, typename D_ptr>
+hashTable<K, D_ptr>::hashTable() {
+    m_table = new std::shared_ptr<node<K, D_ptr>>[m_bucket]();
 }
 
-template<typename K, typename D>
-hashTable<K, D>::~hashTable() {
-    for (int i = 0; i < m_bucket; ++i) {
-        delete m_table[i];
-    }
+template<typename K, typename D_ptr>
+hashTable<K, D_ptr>::~hashTable() {
     delete[] m_table;
 }
 
-template<typename K, typename D>
-int hashTable<K, D>::hashFunction(const K &key) const {
-    return key % m_bucket;
+template<typename K, typename D_ptr>
+int hashTable<K, D_ptr>::hashFunction(const K &key) const {
+    // Ensure result is non-negative for the modulo operation
+    return (key % m_bucket + m_bucket) % m_bucket;
 }
 
-template<typename K, typename D>
-void hashTable<K, D>::resize() {
-    const int newBucketSize = m_size >= m_bucket
-                      ? m_bucket * RESIZE_FACTOR
-                      : (m_size <= 0.25 * m_bucket && m_bucket > INITIAL_SIZE)
-                            ? m_bucket / RESIZE_FACTOR
-                            : -1;
-    if (newBucketSize != -1) {
-        auto newTable = new linkedList<K, D>*[newBucketSize]();
-        const int oldBucketSize = m_bucket;
-        m_bucket = newBucketSize;
-        for (int i = 0; i < oldBucketSize; ++i) {
-            while (m_table[i] != nullptr && m_table[i]->m_size != 0) {
-                pair<K, D> toMove = m_table[i]->pop();
-                int index = hashFunction(toMove.first());
-                if (newTable[index] == nullptr) {
-                    newTable[index] = new linkedList<K, D>();
-                }
-                newTable[index]->insert(toMove.first(), toMove.second());
-            }
-            delete m_table[i];
+template<typename K, typename D_ptr>
+void hashTable<K, D_ptr>::resize(double factor) {
+    int oldBucketSize = m_bucket;
+    m_bucket = static_cast<int>(oldBucketSize * factor);
+    if (m_bucket < INITIAL_SIZE) {
+        m_bucket = INITIAL_SIZE;
+    }
+    if (m_bucket == oldBucketSize) return;
+
+    auto newTable = new std::shared_ptr<node<K, D_ptr>>[m_bucket]();
+
+    for (int i = 0; i < oldBucketSize; ++i) {
+        auto cur = m_table[i];
+        while (cur != nullptr) {
+            auto next = cur->m_next;
+            int newIndex = hashFunction(cur->m_key);
+            cur->m_next = newTable[newIndex];
+            newTable[newIndex] = cur;
+            cur = next;
         }
-        delete[] m_table;
-        m_table = newTable;
     }
+    delete[] m_table;
+    m_table = newTable;
 }
 
-template<typename K, typename D>
-node<K, D> *hashTable<K, D>::insert(const K &key, const D &data) {
-    int index = hashFunction(key);
-    if (m_table[index] == nullptr) {
-        m_table[index] = new linkedList<K, D>();
+template<typename K, typename D_ptr>
+std::shared_ptr<node<K, D_ptr>> hashTable<K, D_ptr>::insert(const K &key, D_ptr data) {
+    if (m_size >= m_bucket) {
+        resize(RESIZE_FACTOR_UP);
     }
-    node<K, D>* newNode = m_table[index]->insert(key, data);
+    
+    int index = hashFunction(key);
+    auto newNode = std::make_shared<node<K, D_ptr>>(key, std::move(data), m_table[index]);
+    m_table[index] = newNode;
     m_size++;
-    resize();
-
     return newNode;
 }
 
-template<typename K, typename D>
-void hashTable<K, D>::remove(const K &key) {
+template<typename K, typename D_ptr>
+void hashTable<K, D_ptr>::remove(const K &key) {
     int index = hashFunction(key);
-    try {
-        if (m_table[index] != nullptr) {
-            m_table[index]->remove(key);
-            if (m_table[index]->m_size == 0) {
-                delete m_table[index];
-                m_table[index] = nullptr;
+    auto cur = m_table[index];
+    std::shared_ptr<node<K, D_ptr>> prev = nullptr;
+    while (cur != nullptr) {
+        if (cur->m_key == key) {
+            if (prev != nullptr) {
+                prev->m_next = cur->m_next;
+            } else {
+                m_table[index] = cur->m_next;
             }
             m_size--;
-            resize();
+            if (m_size > INITIAL_SIZE && m_size <= m_bucket / 4) {
+                resize(RESIZE_FACTOR_DOWN);
+            }
             return;
         }
-    } catch (const key_doesnt_exist&) {
-        throw key_doesnt_exist();
+        prev = cur;
+        cur = cur->m_next;
     }
     throw key_doesnt_exist();
 }
 
-template<typename K, typename D>
-node<K, D> * hashTable<K, D>::find(const K &key) const {
-    const int index = hashFunction(key);
-    if (m_table[index] == nullptr) return nullptr;
-    return m_table[index]->find(key);
-}
-
-// ---------------------------------- linkedList ---------------------------------- //
-
-template <typename K, typename D>
-class linkedList {
-    friend hashTable<K, D>;
-    node<K, D>* m_head;
-    node<K, D>* m_tail;
-    int m_size;
-
-public:
-    linkedList() : m_head(nullptr), m_tail(nullptr), m_size(0) {};
-    linkedList(node<K, D>* head, node<K, D>* tail, int size) : m_head(head), m_tail(tail) , m_size(size) {}
-    ~linkedList();
-    node<K, D>* find(const K& key) const;
-
-    node<K, D> *insert(const K &key, const D &data);
-    void remove(const K& key);
-
-    pair<K, D> pop();
-};
-
-template<typename K, typename D>
-linkedList<K, D>::~linkedList() {
-    node<K, D>* cur = m_head;
-    node<K, D>* toDelete = nullptr;
+template<typename K, typename D_ptr>
+std::shared_ptr<node<K, D_ptr>> hashTable<K, D_ptr>::find(const K &key) const {
+    int index = hashFunction(key);
+    auto cur = m_table[index];
     while (cur != nullptr) {
-        toDelete = cur;
-        cur = cur->m_next;
-        delete toDelete;
-    }
-}
-
-template<typename K, typename D>
-node<K, D> *linkedList<K, D>::insert(const K &key, const D &data) {
-    auto* newNode = new node<K, D>(key, data);
-    if (m_head != nullptr) { // if the head exists
-        m_tail->m_next = newNode;
-        newNode->m_prev = m_tail;
-    }
-    else { // if head doesn't exist, add a new one
-        m_head = newNode;
-    }
-    m_tail = newNode;
-    m_size++;
-
-    return newNode;
-}
-
-template<typename K, typename D>
-void linkedList<K, D>::remove(const K &key) {
-    node<K, D>* cur = m_head;
-    while (cur != nullptr) {
-        if (cur->m_key == key) {
-            node<K, D>* prev = cur->m_prev;
-            node<K, D>* next = cur->m_next;
-
-            if (prev != nullptr) prev->m_next = next;
-            if (next != nullptr) next->m_prev = prev;
-
-            if (cur == m_head) m_head = next;
-            if (cur == m_tail) m_tail = prev;
-
-            delete cur;
-            m_size--;
-            return;
-        }
-        cur = cur->m_next;
-    }
-    if (cur == nullptr) throw key_doesnt_exist();
-
-}
-
-template<typename K, typename D>
-pair<K, D> linkedList<K, D>::pop() {
-    if (m_size == 0) {
-        throw out_of_range();
-    }
-    node<K, D>* victim = m_tail;
-    pair<K, D> result(victim->m_key, victim->m_data);
-    m_tail = victim->m_prev;
-    if (m_tail == nullptr) m_head = nullptr;
-    else m_tail->m_next = nullptr;
-    victim->m_prev = nullptr;
-    delete victim;
-    m_size--;
-    return result;
-}
-
-template<typename K, typename D>
-node<K, D> * linkedList<K, D>::find(const K &key) const {
-    node<K, D>* cur = m_head;
-    while (cur != nullptr) {
-        if (cur->m_key == key) {
-            return cur;
-        }
+        if (cur->m_key == key) return cur;
         cur = cur->m_next;
     }
     return nullptr;
 }
 
-// ------------------------------------- setNode ------------------------------------- //
 
+// ------------------------------------- setNode (Disjoint-Set Data) ------------------------------------- //
 template <typename D>
-class setNode {
+class setNode : public std::enable_shared_from_this<setNode<D>> {
     D m_data;
-    setNode* m_parent;
-    setNode* m_nextAlloc = nullptr;
-    int m_size = 1;
-    int m_uniteCounter = 1;
+    std::shared_ptr<setNode> m_parent;
+    int m_size = 0; // Genres start with 0 songs.
+    int m_uniteCounter = 0;
 
 public:
-    explicit setNode(D data) : m_data(data), m_parent(this) {}
-    setNode* findRoot();
-    void compress(setNode *root);
-    static setNode* uniteBySize(setNode* A, setNode* B);
-    static setNode* unite(setNode* into, setNode* from);
-    setNode* getNextAlloc() const;
-    void setNextAlloc(setNode* bookKeeper);
-    void incUniteCounter();
-    const D& getData() const;
-    int getSize() const;
-    int getUniteCounter() const;
-    setNode* getParent() const;
+    explicit setNode(D data, int initial_counter = 0)
+        : m_data(data), m_parent(nullptr), m_uniteCounter(initial_counter) {}
+
+    std::shared_ptr<setNode> findRoot();
+    static void unite(std::shared_ptr<setNode> child_root, std::shared_ptr<setNode> parent_root);
+    int getUniteCounter() const { return m_uniteCounter; }
+    std::shared_ptr<setNode> getParent() const { return m_parent; } 
+    const D& getData() const { return m_data; }
+    void addToSize(int size_to_add) { m_size += size_to_add; }
+    int getSize() const { return m_size; }
+    void compress(std::shared_ptr<setNode<D>> root, int depth);
 };
 
 template<typename D>
-setNode<D> * setNode<D>::findRoot() {
-    setNode* cur = this;
-    int counter = 0; // TODO: add counter to count height from song to genre
-    while (cur != cur->m_parent) {
-        cur = cur->m_parent;
-        counter++;
+std::shared_ptr<setNode<D>> setNode<D>::findRoot() {
+    int total_merges = 0;
+    std::shared_ptr<setNode<D>> root = this->shared_from_this();
+    while (root->m_parent != nullptr) {
+        total_merges += root->m_uniteCounter;
+        root = root->m_parent;
     }
-    setNode* root = cur;
-    compress(root);
+    compress(root, total_merges);
     return root;
 }
-
-template<typename D>
-void setNode<D>::compress(setNode *root) {
-    setNode* cur = this;
-    setNode* next = nullptr;
-    while (cur != cur->m_parent) {
-        next = cur->m_parent;
+void setNode<D>::compress(std::shared_ptr<setNode<D>> root, int depth) {
+    std::shared_ptr<setNode<D>> cur = this->shared_from_this();
+    while (cur != root) {
+        int oldDepth = cur->m_uniteCounter;
         cur->m_parent = root;
-        cur = next;
+        cur->m_uniteCounter = depth;
+        depth -= oldDepth;
+        cur = cur->m_parent;
     }
 }
-
 template<typename D>
-setNode<D> * setNode<D>::uniteBySize(setNode *A, setNode *B) {
-    A = A->findRoot();
-    B = B->findRoot();
-
-    if (A->m_size < B->m_size) {
-        setNode* temp = A;
-        A = B;
-        B = temp;
-    }
-
-    B->m_parent = A;
-    A->m_size += B->m_size;
-
-    return A;
-}
-
-template<typename D>
-setNode<D> * setNode<D>::unite(setNode *into, setNode *from) {
-    into = into->findRoot();
-    from = from->findRoot();
-
-    from->m_parent = into;
-    into->m_size += from->m_size;
-    into->m_uniteCounter += from->m_uniteCounter;
-
-    return into;
-}
-
-template<typename D>
-setNode<D> * setNode<D>::getNextAlloc() const {
-    return m_nextAlloc;
-}
-
-template<typename D>
-void setNode<D>::setNextAlloc(setNode *bookKeeper) {
-    m_nextAlloc = bookKeeper;
-}
-
-template<typename D>
-void setNode<D>::incUniteCounter() {
-    m_uniteCounter++;
-}
-
-template<typename D>
-const D & setNode<D>::getData() const {
-    return m_data;
-}
-
-template<typename D>
-int setNode<D>::getSize() const {
-    return m_size;
-}
-
-template<typename D>
-int setNode<D>::getUniteCounter() const {
-    return m_uniteCounter;
-}
-
-template<typename D>
-setNode<D> * setNode<D>::getParent() const {
-    return m_parent;
+void setNode<D>::unite(std::shared_ptr<setNode<D>> child_root, std::shared_ptr<setNode<D>> parent_root) {
+    parent_root->addToSize(child_root->getSize());
+    child_root->m_parent = parent_root;
+    child_root->m_uniteCounter = 1;
 }
 
 #endif //HASHTABLE_H
