@@ -5,7 +5,7 @@
 #include <utility> // For std::move
 #include <memory>  // For std::shared_ptr, std::make_shared, and std::enable_shared_from_this
 
-
+using namespace std;
 // ------------------------------------- node (Hash Table Entry) ------------------------------------- //
 template <typename K, typename D_ptr>
 
@@ -136,50 +136,51 @@ std::shared_ptr<node<K, D_ptr>> hashTable<K, D_ptr>::find(const K &key) const {
 // ------------------------------------- setNode ------------------------------------- //
 
 template <typename D>
-class setNode : public std::enable_shared_from_this<setNode<D>> {
+class setNode : public enable_shared_from_this<setNode<D>> {
     D m_data;
 
-    std::shared_ptr<setNode> m_parent;
+    shared_ptr<setNode<D>> m_parent;
 
     int m_uniteCounter = 0;
 
 public:
 
-    explicit setNode(D data) : m_data(data), m_parent(this) {}
+    explicit setNode(D data) : m_data(data) {}
 
-    setNode* findRoot();
-    void compressAndCalc(setNode<D>* root, int counter);
+    shared_ptr<setNode<D>> findRoot();
+    void compressAndCalc(shared_ptr<setNode<D>> root, int counter);
 
-    static setNode<D>* uniteBySize(setNode<D>* A, setNode<D>* B);
-    static setNode<D>* unite(setNode<D>* into, setNode<D>* from);
+    static shared_ptr<setNode<D>> uniteBySize(shared_ptr<setNode<D>> A, shared_ptr<setNode<D>> B);
+    static shared_ptr<setNode<D>> unite(shared_ptr<setNode<D>> into, shared_ptr<setNode<D>> from);
 
     void setUniteCounter(int counter);
 
     const D& getData() const;
     int getUniteCounter() const;
-    setNode<D>* getParent() const;
+    shared_ptr<setNode<D>> getParent() const;
+    void setParent(shared_ptr<setNode<D>> parent);
 };
 
 template<typename D>
-setNode<D> * setNode<D>::findRoot() {
-    setNode<D>* cur = this;
+shared_ptr<setNode<D>> setNode<D>::findRoot() {
+    shared_ptr<setNode<D>> cur = this->shared_from_this();
     int uniteNum = 0;
-    while (cur != cur->m_parent) {
+    while (cur->m_parent != nullptr) {
         uniteNum += cur->getUniteCounter();
         cur = cur->m_parent;
     }
-    setNode<D>* root = cur;
+    auto root = cur;
     compressAndCalc(root, uniteNum);
 
     return root;
 }
 template<typename D>
 
-void setNode<D>::compressAndCalc(setNode<D>* root, int uniteNum) {
-    setNode<D>* cur = this;
-    setNode<D>* next = nullptr;
+void setNode<D>::compressAndCalc(shared_ptr<setNode<D>> root, int uniteNum) {
+    shared_ptr<setNode<D>> cur = this->shared_from_this();
+    shared_ptr<setNode<D>> next = nullptr;
 
-    while (cur != cur->m_parent) {
+    while (cur->m_parent != nullptr) {
         next = cur->m_parent;
         int oldUniteCounter = cur->getUniteCounter();
 
@@ -195,9 +196,9 @@ void setNode<D>::compressAndCalc(setNode<D>* root, int uniteNum) {
 //TODO decide which uniteBySize to use
 //TODO how we implement nodes of genres and songs, maybe need to go to genre node
 template<typename D>
-setNode<D> * setNode<D>::uniteBySize(setNode<D> *A, setNode<D> *B) {
-    setNode<D>* aRoot = A->findRoot();
-    setNode<D>* bRoot = B->findRoot();
+shared_ptr<setNode<D>> setNode<D>::uniteBySize(shared_ptr<setNode<D>> A, shared_ptr<setNode<D>> B) {
+    shared_ptr<setNode<D>> aRoot = A->findRoot();
+    shared_ptr<setNode<D>> bRoot = B->findRoot();
 
     if (aRoot->m_size < bRoot->m_size) {
         unite(bRoot, aRoot);
@@ -210,12 +211,14 @@ setNode<D> * setNode<D>::uniteBySize(setNode<D> *A, setNode<D> *B) {
     }
 }
 
-template<typename D>
-setNode<D> * setNode<D>::unite(setNode<D> *into, setNode<D> *from) {
-    setNode<D>* intoRoot = into->findRoot();
-    setNode<D>* fromRoot = from->findRoot();
 
-    fromRoot->m_parent = intoRoot;
+
+template<typename D>
+shared_ptr<setNode<D>> setNode<D>::unite(shared_ptr<setNode<D>> into, shared_ptr<setNode<D>> from) {
+    auto intoRoot = into->findRoot();
+    auto fromRoot = from->findRoot();
+
+    fromRoot->setParent(intoRoot);
 
     return intoRoot;
 }
@@ -226,7 +229,7 @@ void setNode<D>::setUniteCounter(int counter) {
 }
 
 template<typename D>
-const D & setNode<D>::getData() const {
+const D& setNode<D>::getData() const {
     return m_data;
 }
 
@@ -236,8 +239,13 @@ int setNode<D>::getUniteCounter() const {
 }
 
 template<typename D>
-setNode<D>* setNode<D>::getParent() const {
+shared_ptr<setNode<D>> setNode<D>::getParent() const {
     return m_parent;
+}
+
+template<typename D>
+void setNode<D>::setParent(shared_ptr<setNode<D>> parent) {
+        m_parent = parent;
 }
 
 #endif //HASHTABLE_H
@@ -253,10 +261,11 @@ public:
 
 template<typename D>
 class genreNode : public setNode<D> {
-    int numberOfSongs = 1;
+    int numberOfSongs = 0;
 public:
     genreNode(const D &data) : setNode<D>(data) {}
     int getNumberOfSongs() const { return numberOfSongs; }
     void setSize(int size) { numberOfSongs = size; }
+    void addToSize(int size) { numberOfSongs += size; }
 };
 
