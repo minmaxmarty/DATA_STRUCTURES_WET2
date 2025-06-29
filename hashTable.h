@@ -349,7 +349,6 @@ void setNode<D>::setUniteCounter(int counter) {
     m_uniteCounter = counter;
 }
 
-
 template<typename D>
 const D & setNode<D>::getData() const {
     return m_data;
@@ -366,8 +365,6 @@ setNode<D>* setNode<D>::getParent() const {
 }
 
 #endif //HASHTABLE_H
-
-
 // ------------------------------------- songNode ------------------------------------- //
 
 template<typename D>
