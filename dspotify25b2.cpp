@@ -9,9 +9,9 @@ DSpotify::DSpotify()= default;
 DSpotify::~DSpotify() = default;
 
 
-// The destructor can be removed as smart pointers handle memory automatically.
-// In dspotify25b2.cpp
-
+// Find the genre by id, if it exists,
+// Insert a new genre node into the genre hash table.( need to do hashing and insert into linked list)
+// We have nodes in the linked list, and each one of the must point to the next one and also point to genreNode(it must be shared ptr)
 StatusType DSpotify::addGenre(int genreId){
     if (genreId <= 0) return StatusType::INVALID_INPUT;
     if (m_genreHT.find(genreId) != nullptr) return StatusType::FAILURE;
@@ -56,69 +56,89 @@ StatusType DSpotify::addSong(int songId, int genreId){
 
     return StatusType::SUCCESS;
 }
+
 StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     if (genreId1 <= 0 || genreId2 <= 0 || genreId3 <= 0 || genreId1 == genreId2 ||
         genreId1 == genreId3 || genreId2 == genreId3)
         return StatusType::INVALID_INPUT;
 
-    node<int, setNode<int>*>* genre1 = m_genreHT.find(genreId1);
-    node<int, setNode<int>*>* genre2 = m_genreHT.find(genreId2);
+    genreNode<int>* genre1 = m_genreHT.find(genreId1);
+    genreNode<int>* genre2 = m_genreHT.find(genreId2);
+    genreNode<int>* genre3 = m_genreHT.find(genreId3);
 
-    if (genre1 == nullptr || genre2 == nullptr || m_genreHT.find(genreId3) != nullptr)
+
+    if (!genre1 || !genre2 || genre3)
         return StatusType::FAILURE;
 
-    setNode<int>* newGenreSetNode = nullptr;
+    shared_ptr<genreNode<int>> newGenreNode = nullptr;
+    shared_ptr<genreNode<int>> g1New = nullptr;
+    shared_ptr<genreNode<int>> g2New = nullptr;
+
     try {
-        newGenreSetNode = new setNode(genreId3);
-        m_genreHT.insert(genreId3, newGenreSetNode);
+        newGenreNode = make_shared<genreNode<int>>(genreId3);
+        g1New = std::make_shared<genreNode<int>>(genreId1);
+        g2New = std::make_shared<genreNode<int>>(genreId2);
     } catch (const std::bad_alloc&) {
-        delete newGenreSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
 
-    newGenreSetNode->setNextAlloc(m_bookKeeper);
-    m_bookKeeper = newGenreSetNode;
+    genreNode<int>::unite(newGenreNode.get(), genre1);
+    genre1->setUniteCounter(genre1->getUniteCounter() + 1);
 
-    setNode<int>* genreSetNode1 = genre1->m_data;
-    setNode<int>* genreSetNode2 = genre2->m_data;
+    genreNode<int>::unite(newGenreNode.get(), genre2);
+    genre2->setUniteCounter(genre2->getUniteCounter() + 1);
 
-    setNode<int>* unitedNode = setNode<int>::uniteBySize(genreSetNode1, genreSetNode2);
-    setNode<int>* finalUnitedNode = setNode<int>::unite(newGenreSetNode, unitedNode);
+    newGenreNode->setSize(genre1->getNumberOfSongs() + genre2->getNumberOfSongs());
 
-    finalUnitedNode->incUniteCounter();
+    m_genreHT.remove(genreId1);
+    m_genreHT.remove(genreId2);
+
+
+    m_genreHT.insert(genreId3, newGenreNode);    
+
+    m_genreHT.insert(genreId1, g1New);
+    m_genreHT.insert(genreId2, g2New);
 
     return StatusType::SUCCESS;
 }
 
+//Find root of the song
+//Get the id of the root
 output_t<int> DSpotify::getSongGenre(int songId){
     if (songId <= 0) return StatusType::INVALID_INPUT;
 
-    auto song = m_songHT.find(songId);
-    if (song == nullptr) return StatusType::FAILURE;
 
-    auto genre = song->m_data->findRoot();
+    songNode<int>* song = m_songHT.find(songId);
+    if (!song) return StatusType::FAILURE;
+
+    auto genre = song->findRoot();
+
 
     output_t result(genre->getData());
 
     return result;
 }
 
+//Find genreNode by genreId
+//Return the number of songs in the genreNode
 output_t<int> DSpotify::getNumberOfSongsByGenre(int genreId){
     if (genreId <= 0) return StatusType::INVALID_INPUT;
 
-    auto genre = m_genreHT.find(genreId);
 
-    if (genre == nullptr) return StatusType::FAILURE;
+    genreNode<int>* genre = m_genreHT.find(genreId);
 
-    auto genreSetNode = genre->m_data;
+    if (!genre) return StatusType::FAILURE;
 
-    const int toReturn = genreSetNode->getParent() == genreSetNode ? genreSetNode->getSize() : 0;
+    const int toReturn = genre->getNumberOfSongs();
 
     output_t result(toReturn);
 
     return result;
 }
 
+//Find songNode by songId
+//Find Root of the songNode(in find uniteCounter must update)
+//Return the uniteCounter of the songNode
 output_t<int> DSpotify::getNumberOfGenreChanges(int songId){
   if( songId <= 0) return StatusType::INVALID_INPUT;
 const auto& song_node = m_songHT.find(songId);
@@ -133,4 +153,55 @@ try{
 } catch (const std::bad_alloc&) {
     return StatusType::ALLOCATION_ERROR;
 }
+}
+
+
+
+
+
+
+// go in two hashes, genre and song, go one by one in table[i] and delete all nodes
+// we need destructor to delete linked lists and nodes in them
+DSpotify::~DSpotify() {
+    
+}
+
+// Find the genre by id, if it exists,
+// Insert a new genre node into the genre hash table.( need to do hashing and insert into linked list)
+// We have nodes in the linked list, and each one of the must point to the next one and also point to genreNode(it must be shared ptr)
+StatusType DSpotify::addGenre(int genreId){
+    
+}
+
+
+//Insert a new song node into the song hash table.
+// Find the genre by id, if it exists, and insert the song node into the genre
+StatusType DSpotify::addSong(int songId, int genreId){
+    
+}
+
+//Make unite  of two genres by their ids into a new genre with id genreId3(one by one)
+//update genreId3 number of songs like sum of genreId1 and genreId2
+//Update the genreId1 and genreId2 unite counter + 1 
+StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
+    
+}
+
+//Find root of the song
+//Get the id of the root
+output_t<int> DSpotify::getSongGenre(int songId){
+   
+}
+
+//Find genreNode by genreId
+//Return the number of songs in the genreNode
+output_t<int> DSpotify::getNumberOfSongsByGenre(int genreId){
+   
+}
+
+//Find songNode by songId
+//Find Root of the songNode(in find uniteCounter must update)
+//Return the uniteCounter of the songNode
+output_t<int> DSpotify::getNumberOfGenreChanges(int songId){
+   
 }
