@@ -148,6 +148,9 @@ public:
     void addToSize(int size_to_add) { m_size += size_to_add; }
     int getSize() const { return m_size; }
     void compress(std::shared_ptr<setNode<D>> root, int depth);
+    void setParent(std::shared_ptr<setNode<D>> parent) {
+        m_parent = parent;
+    }
 };
 
 template<typename D>
@@ -164,11 +167,12 @@ std::shared_ptr<setNode<D>> setNode<D>::findRoot() {
 void setNode<D>::compress(std::shared_ptr<setNode<D>> root, int depth) {
     std::shared_ptr<setNode<D>> cur = this->shared_from_this();
     while (cur != root) {
+        auto &next = cur->m_parent;
         int oldDepth = cur->m_uniteCounter;
         cur->m_parent = root;
         cur->m_uniteCounter = depth;
         depth -= oldDepth;
-        cur = cur->m_parent;
+        cur = next;
     }
 }
 template<typename D>

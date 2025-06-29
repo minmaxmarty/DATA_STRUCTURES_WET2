@@ -45,7 +45,7 @@ StatusType DSpotify::addSong(int songId, int genreId){
        const auto& genreRoot = genre_node_in_ht->m_data;
 
         // Connect the song to the genre's root.
-        newSongSetNode->m_parent = genreRoot;
+        newSongSetNode->setParent(genreRoot);
 
         // Increment the genre's song count by exactly 1.
         genreRoot->addToSize(1);
