@@ -1,77 +1,62 @@
 // You can edit anything you want in this file.
 // However you need to implement all public DSpotify function, as provided below as a template
-
+#include <stdlib.h>
 #include "dspotify25b2.h"
 
 
-DSpotify::DSpotify() : m_bookKeeper(nullptr) {}
+DSpotify::DSpotify()= default;
 
-// go in two hashes, genre and song, go one by one in table[i] and delete all nodes
-// we need destructor to delete linked lists and nodes in them
-DSpotify::~DSpotify() {
-    setNode<int>* cur = m_bookKeeper;
-    setNode<int>* next = nullptr;
-    while (cur != nullptr) {
-        next = cur->getNextAlloc();
-        delete cur;
-        cur = next;
-    }
-}
+DSpotify::~DSpotify() = default;
+
 
 // Find the genre by id, if it exists,
 // Insert a new genre node into the genre hash table.( need to do hashing and insert into linked list)
 // We have nodes in the linked list, and each one of the must point to the next one and also point to genreNode(it must be shared ptr)
 StatusType DSpotify::addGenre(int genreId){
-    if (genreId <=0) return StatusType::INVALID_INPUT;
+    if (genreId <= 0) return StatusType::INVALID_INPUT;
     if (m_genreHT.find(genreId) != nullptr) return StatusType::FAILURE;
-    setNode<int>* newGenreSetNode = nullptr;
+
     try {
-        newGenreSetNode = new setNode(genreId);
+        // Create the genre's setNode. The constructor defaults to an initial_counter of 0.
+        auto newGenreSetNode = std::make_shared<setNode<int>>(genreId);
         m_genreHT.insert(genreId, newGenreSetNode);
     } catch (const std::bad_alloc&) {
-        delete newGenreSetNode;
         return StatusType::ALLOCATION_ERROR;
     }
-
-    newGenreSetNode->setNextAlloc(m_bookKeeper);
-    m_bookKeeper = newGenreSetNode;
-
     return StatusType::SUCCESS;
 }
 
 
-//Insert a new song node into the song hash table.
-// Find the genre by id, if it exists, and insert the song node into the genre
 StatusType DSpotify::addSong(int songId, int genreId){
     if (genreId <= 0 || songId <= 0) return StatusType::INVALID_INPUT;
 
-    node<int, setNode<int>*>* genre = m_genreHT.find(genreId);
-    node<int, setNode<int>*>* song;
-
-    if (genre == nullptr || m_songHT.find(songId) != nullptr) return StatusType::FAILURE;
-    setNode<int>* newSongSetNode = nullptr;
-    try {
-        newSongSetNode = new setNode(songId);
-        song = m_songHT.insert(songId, newSongSetNode);
-    } catch (const std::bad_alloc&) {
-        delete newSongSetNode;
-        return StatusType::ALLOCATION_ERROR;
+    auto genre_node_in_ht = m_genreHT.find(genreId);
+    if (genre_node_in_ht == nullptr || m_songHT.find(songId) != nullptr) {
+        return StatusType::FAILURE;
     }
 
-    newSongSetNode->setNextAlloc(m_bookKeeper);
-    m_bookKeeper = newSongSetNode;
+    try {
+        // *** KEY CHANGE HERE ***
+        // Create the song's setNode, explicitly giving it an initial counter of 1.
+        auto newSongSetNode = std::make_shared<setNode<int>>(songId, 1);
+        m_songHT.insert(songId, newSongSetNode);
 
-    setNode<int>* genreSetNode = genre->m_data;
-    setNode<int>* songSetNode = song->m_data;
+        // Find the true root of the genre.
+       const auto& genreRoot = genre_node_in_ht->m_data;
 
-    setNode<int>::uniteBySize(genreSetNode, songSetNode);
+        // Connect the song to the genre's root.
+        newSongSetNode->setParent(genreRoot);
+
+        // Increment the genre's song count by exactly 1.
+        genreRoot->addToSize(1);
+
+    } catch (const std::bad_alloc&) {
+        return StatusType::ALLOCATION_ERROR;
+    }
 
     return StatusType::SUCCESS;
 }
 
-//Make unite  of two genres by their ids into a new genre with id genreId3(one by one)
-//update genreId3 number of songs like sum of genreId1 and genreId2
-//Update the genreId1 and genreId2 unite counter + 1 
 StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     if (genreId1 <= 0 || genreId2 <= 0 || genreId3 <= 0 || genreId1 == genreId2 ||
         genreId1 == genreId3 || genreId2 == genreId3)
@@ -122,10 +107,12 @@ StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
 output_t<int> DSpotify::getSongGenre(int songId){
     if (songId <= 0) return StatusType::INVALID_INPUT;
 
+
     songNode<int>* song = m_songHT.find(songId);
     if (!song) return StatusType::FAILURE;
 
     auto genre = song->findRoot();
+
 
     output_t result(genre->getData());
 
@@ -136,6 +123,7 @@ output_t<int> DSpotify::getSongGenre(int songId){
 //Return the number of songs in the genreNode
 output_t<int> DSpotify::getNumberOfSongsByGenre(int genreId){
     if (genreId <= 0) return StatusType::INVALID_INPUT;
+
 
     genreNode<int>* genre = m_genreHT.find(genreId);
 
@@ -152,16 +140,19 @@ output_t<int> DSpotify::getNumberOfSongsByGenre(int genreId){
 //Find Root of the songNode(in find uniteCounter must update)
 //Return the uniteCounter of the songNode
 output_t<int> DSpotify::getNumberOfGenreChanges(int songId){
-    if (songId <= 0) return StatusType::INVALID_INPUT;
-
-    node<int, setNode<int>*>* song = m_songHT.find(songId);
-    if (song == nullptr) return StatusType::FAILURE;
-
-    setNode<int>* genre = song->m_data->findRoot();
-
-    output_t result(genre->getUniteCounter());
-
+  if( songId <= 0) return StatusType::INVALID_INPUT;
+const auto& song_node = m_songHT.find(songId);
+    if (song_node == nullptr) return StatusType::FAILURE;
+    auto& songSetNode = song_node->m_data;
+try{
+    songSetNode->findRoot();
+    output_t<int> result(songSetNode-> getUniteCounter());
+    // The findRoot call will update the songSetNode's parent and uniteCounter.
+    // So we can return the uniteCounter directly.
     return result;
+} catch (const std::bad_alloc&) {
+    return StatusType::ALLOCATION_ERROR;
+}
 }
 
 

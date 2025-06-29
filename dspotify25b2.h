@@ -25,10 +25,10 @@ private:
     // Here you may add anything you want
     //
 
-    hashTable<int, shared_ptr<genreNode<int>>> m_genreHT;
-    hashTable<int, unique_ptr<songNode<int>>> m_songHT;
 
-    // setNode<int>* m_bookKeeper;
+    hashTable<int, std::shared_ptr<setNode<int>>> m_genreHT;
+    hashTable<int, std::shared_ptr<setNode<int>>> m_songHT;
+
     
 public:
     // <DO-NOT-MODIFY> {
