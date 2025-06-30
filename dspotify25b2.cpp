@@ -28,30 +28,29 @@ StatusType DSpotify::addGenre(int genreId){
 }
 
 
+// In dspotify25b2.cpp
 StatusType DSpotify::addSong(int songId, int genreId){
     if (genreId <= 0 || songId <= 0) return StatusType::INVALID_INPUT;
 
-    auto genre_node_in_ht = m_genreHT.find(genreId);
-    if (genre_node_in_ht == nullptr || m_songHT.find(songId) != nullptr) {
+    auto genre_ht_node = m_genreHT.find(genreId);
+    if (genre_ht_node == nullptr || m_songHT.find(songId) != nullptr) {
         return StatusType::FAILURE;
     }
 
     try {
-        // *** KEY CHANGE HERE ***
-        // Create the song's setNode, explicitly giving it an initial counter of 1.
+        // 1. Find the true root of the genre's set.
+        auto genreRoot = std::static_pointer_cast<genreNode<int>>(genre_ht_node->m_data->findRoot());
+
         auto newSongNode = std::make_shared<songNode<int>>(songId);
-        
-        newSongNode->setParent(nullptr);
         m_songHT.insert(songId, newSongNode);
 
-        // Find the true root of the genre.
-        const auto& genreRoot = genre_node_in_ht->m_data;
-
-        // Connect the song to the genre's root.
+        // 2. Connect the song to the ROOT.
         newSongNode->setParent(genreRoot);
-        newSongNode->setUniteCounter(1 - genreRoot->getUniteCounter()); // Initialize the unite counter to 1.
+        
+        // 3. The song starts with 1 genre. Its counter is relative to the root.
+        newSongNode->setUniteCounter(1 - genreRoot->getUniteCounter());
 
-        // Increment the genre's song count by exactly 1.
+        // 4. Increment the song count on the ROOT of the set.
         genreRoot->addToSize(1);
 
     } catch (const std::bad_alloc&) {
@@ -61,50 +60,48 @@ StatusType DSpotify::addSong(int songId, int genreId){
     return StatusType::SUCCESS;
 }
 
+// In dspotify25b2.cpp
 StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     if (genreId1 <= 0 || genreId2 <= 0 || genreId3 <= 0 || genreId1 == genreId2 ||
         genreId1 == genreId3 || genreId2 == genreId3)
         return StatusType::INVALID_INPUT;
 
-    auto genre1 = m_genreHT.find(genreId1);
-    auto genre2 = m_genreHT.find(genreId2);
-    auto genre3 = m_genreHT.find(genreId3);
+    auto genre1_ht_node = m_genreHT.find(genreId1);
+    auto genre2_ht_node = m_genreHT.find(genreId2);
 
-    if (genre1 == nullptr || genre2 == nullptr || genre3 != nullptr)
+    if (genre1_ht_node == nullptr || genre2_ht_node == nullptr || m_genreHT.find(genreId3) != nullptr)
         return StatusType::FAILURE;
 
-    
-    shared_ptr<genreNode<int>> g1New = nullptr;
-    shared_ptr<genreNode<int>> g2New = nullptr;
-
     try {
-        g1New = std::make_shared<genreNode<int>>(genreId1);
-        g2New = std::make_shared<genreNode<int>>(genreId2);
+        // 1. Find the ROOTS of the genre sets.
+        auto root1 = genre1_ht_node->m_data->findRoot();
+        auto root2 = genre2_ht_node->m_data->findRoot();
+
+        if (root1 == root2) return StatusType::SUCCESS; // Already merged
+
+        // 2. Perform the efficient union on the roots.
+        auto finalRoot = genreNode<int>::uniteBySize(root1, root2);
+        
+        // 3. Update the logical data of the new root.
+        finalRoot->setData(genreId3);
+        finalRoot->setUniteCounter(finalRoot->getUniteCounter() + 1);
+
+        // 4. Update the hash table to reflect the merge.
+        m_genreHT.remove(genreId1);
+        m_genreHT.remove(genreId2);
+
+        // genreId3 now points to the new, merged root.
+        m_genreHT.insert(genreId3, std::static_pointer_cast<genreNode<int>>(finalRoot));
+
+        // Re-create the old genres as new, empty sets as per the requirements.
+        auto g1New = std::make_shared<genreNode<int>>(genreId1);
+        auto g2New = std::make_shared<genreNode<int>>(genreId2);
+        m_genreHT.insert(genreId1, g1New);
+        m_genreHT.insert(genreId2, g2New);
+
     } catch (const std::bad_alloc&) {
         return StatusType::ALLOCATION_ERROR;
     }
-
-    const auto& finalroot = genreNode<int>::uniteBySize(genre2->m_data, genre1->m_data);
-
-    finalroot->setUniteCounter(finalroot->getUniteCounter() + 1);
-
-    if(finalroot->getData() == genreId1) {
-       genre2->m_data->setUniteCounter(genre2->m_data->getUniteCounter() - genre1->m_data->getUniteCounter() + 1);
-    } else {
-       genre1->m_data->setUniteCounter(genre1->m_data->getUniteCounter() - genre2->m_data->getUniteCounter() + 1);
-    }
-
-    std::static_pointer_cast<genreNode<int>>(finalroot)->setSize(genre1->m_data->getNumberOfSongs() + genre2->m_data->getNumberOfSongs());
-    finalroot->setData(genreId3);
-
-    // Cast finalroot to shared_ptr<genreNode<int>> before inserting
-    m_genreHT.insert(genreId3, std::static_pointer_cast<genreNode<int>>(finalroot));
-
-    m_genreHT.remove(genreId1);
-    m_genreHT.remove(genreId2);
-
-    m_genreHT.insert(genreId1, g1New);
-    m_genreHT.insert(genreId2, g2New);
 
     return StatusType::SUCCESS;
 }
@@ -124,43 +121,27 @@ output_t<int> DSpotify::getSongGenre(int songId){
 
     return result;
 }
-
-//Find genreNode by genreId
-//Return the number of songs in the genreNode
+// In dspotify25b2.cpp
 output_t<int> DSpotify::getNumberOfSongsByGenre(int genreId){
     if (genreId <= 0) return StatusType::INVALID_INPUT;
-
-
     auto genre = m_genreHT.find(genreId);
-
     if (genre == nullptr) return StatusType::FAILURE;
 
-    const int toReturn = genre->m_data->getNumberOfSongs();
-
-    output_t<int> result(toReturn);
-
-    return result;
+    // FIX: Find the root to get the correct size of the entire set.
+    auto root = std::static_pointer_cast<genreNode<int>>(genre->m_data->findRoot());
+    return output_t<int>(root->getNumberOfSongs());
 }
 
-//Find songNode by songId
-//Find Root of the songNode(in find uniteCounter must update)
-//Return the uniteCounter of the songNode
 output_t<int> DSpotify::getNumberOfGenreChanges(int songId){
-    if( songId <= 0) return StatusType::INVALID_INPUT;
+    if (songId <= 0) return StatusType::INVALID_INPUT;
+    const auto& song_node_ht = m_songHT.find(songId);
+    if (song_node_ht == nullptr) return StatusType::FAILURE;
 
-    const auto& song_node = m_songHT.find(songId);
+    auto& songSetNode = song_node_ht->m_data;
+    
+    // FIX: Calling findRoot() updates the song's counter via path compression.
+    auto genreRoot = songSetNode->findRoot();
 
-    if (song_node == nullptr) return StatusType::FAILURE;
-
-    auto& songSetNode = song_node->m_data;
-
-    try{
-        auto genreSetNode = songSetNode->findRoot();
-        output_t<int> result(genreSetNode-> getUniteCounter() + songSetNode->getUniteCounter());
-        // The findRoot call will update the songSetNode's parent and uniteCounter.
-        // So we can return the uniteCounter directly.
-        return result;
-    } catch (const std::bad_alloc&) {
-        return StatusType::ALLOCATION_ERROR;
-    }
+    // The total changes is the song's (now updated) counter + its final root's counter.
+    return output_t<int>(songSetNode->getUniteCounter() + genreRoot->getUniteCounter());
 }

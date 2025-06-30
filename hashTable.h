@@ -167,68 +167,56 @@ public:
     void setData(const D& data) { m_data = data; }
 };
 
+// In hashTable.h, inside the setNode class
 template<typename D>
 shared_ptr<setNode<D>> setNode<D>::findRoot() {
-    shared_ptr<setNode<D>> cur = this->shared_from_this();
-    int uniteNum = 0;
-    while (cur->m_parent != nullptr) {
-        uniteNum += cur->getUniteCounter();
-        cur = cur->m_parent;
+    // Base case: If this node has no parent, it is the root.
+    if (m_parent == nullptr) {
+        return this->shared_from_this();
     }
-    auto root = cur;
-    compressAndCalc(root, uniteNum, cur->getUniteCounter());
 
-    return root;
-}
-template<typename D>
+    // Recursive step: Find the ultimate root of the parent.
+    shared_ptr<setNode<D>> ultimate_root = m_parent->findRoot();
 
-void setNode<D>::compressAndCalc(shared_ptr<setNode<D>> root, int uniteNum, int rootUniteCounter) {
-    shared_ptr<setNode<D>> cur = this->shared_from_this();
-    shared_ptr<setNode<D>> next = nullptr;
+    // --- Path Compression & Counter Update ---
+    // This happens "on the way back" from the recursion.
+    
+    // My new counter should be the sum of the old path.
+    // My counter (dist to parent) + parent's counter (dist from parent to root)
+    m_uniteCounter += m_parent->getUniteCounter();
 
-    while (cur->m_parent != nullptr) {
-        next = cur->m_parent;
-        int oldUniteCounter = cur->getUniteCounter();
-        if(next == root) {
-            break;
-        }
-        cur->m_parent = root;
-        cur->setUniteCounter(uniteNum);
+    // Point me directly to the ultimate root.
+    m_parent = ultimate_root;
 
-        uniteNum -= oldUniteCounter;
-        cur = next;
-    }
+    return ultimate_root;
 }
 
 
 //TODO decide which uniteBySize to use
 //TODO how we implement nodes of genres and songs, maybe need to go to genre node
+// In hashTable.h, inside the setNode class
+// This function assumes A and B are already roots, which we'll enforce in mergeGenres.
 template<typename D>
-shared_ptr<setNode<D>> setNode<D>::uniteBySize(shared_ptr<setNode<D>> A, shared_ptr<setNode<D>> B) {
-    shared_ptr<setNode<D>> aRoot = A->findRoot();
-    shared_ptr<setNode<D>> bRoot = B->findRoot();
+static shared_ptr<setNode<D>> uniteBySize(shared_ptr<setNode<D>> rootA, shared_ptr<setNode<D>> rootB) {
+    if (rootA == rootB) return rootA; // Already in the same set.
 
-    if (aRoot->getNumberOfSongs() < bRoot->getNumberOfSongs()) {
-        unite(bRoot, aRoot);
+    // Cast to genreNode to access song count, which we use as our "size"
+    auto rootA_genre = std::static_pointer_cast<genreNode<D>>(rootA);
+    auto rootB_genre = std::static_pointer_cast<genreNode<D>>(rootB);
 
-        return bRoot;
-    } else {
-        unite(aRoot, bRoot);
-
-        return aRoot;
+    // Ensure rootA is the larger set by song count
+    if (rootA_genre->getNumberOfSongs() < rootB_genre->getNumberOfSongs()) {
+        std::swap(rootA_genre, rootB_genre);
     }
-}
 
+    // Attach the smaller tree (rootB) under the larger one (rootA)
+    rootB_genre->setParent(rootA_genre);
+    rootA_genre->addToSize(rootB_genre->getNumberOfSongs());
 
+    // Update the counter of the old root relative to the new one.
+    rootB_genre->setUniteCounter(rootB_genre->getUniteCounter() - rootA_genre->getUniteCounter());
 
-template<typename D>
-shared_ptr<setNode<D>> setNode<D>::unite(shared_ptr<setNode<D>> into, shared_ptr<setNode<D>> from) {
-    auto intoRoot = into->findRoot();
-    auto fromRoot = from->findRoot();
-
-    fromRoot->setParent(intoRoot);
-
-    return intoRoot;
+    return rootA_genre;
 }
 
 template<typename D>
