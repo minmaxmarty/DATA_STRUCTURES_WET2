@@ -40,7 +40,7 @@ StatusType DSpotify::addSong(int songId, int genreId){
         // *** KEY CHANGE HERE ***
         // Create the song's setNode, explicitly giving it an initial counter of 1.
         auto newSongNode = std::make_shared<songNode<int>>(songId);
-        newSongNode->setUniteCounter(1); // Initialize the unite counter to 1.
+        
         newSongNode->setParent(nullptr);
         m_songHT.insert(songId, newSongNode);
 
@@ -49,6 +49,7 @@ StatusType DSpotify::addSong(int songId, int genreId){
 
         // Connect the song to the genre's root.
         newSongNode->setParent(genreRoot);
+        newSongNode->setUniteCounter(1 - genreRoot->getUniteCounter()); // Initialize the unite counter to 1.
 
         // Increment the genre's song count by exactly 1.
         genreRoot->addToSize(1);
@@ -69,35 +70,38 @@ StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     auto genre2 = m_genreHT.find(genreId2);
     auto genre3 = m_genreHT.find(genreId3);
 
-
     if (genre1 == nullptr || genre2 == nullptr || genre3 != nullptr)
         return StatusType::FAILURE;
 
-    shared_ptr<genreNode<int>> newGenreNode = nullptr;
+    
     shared_ptr<genreNode<int>> g1New = nullptr;
     shared_ptr<genreNode<int>> g2New = nullptr;
 
     try {
-        newGenreNode = make_shared<genreNode<int>>(genreId3);
         g1New = std::make_shared<genreNode<int>>(genreId1);
         g2New = std::make_shared<genreNode<int>>(genreId2);
     } catch (const std::bad_alloc&) {
         return StatusType::ALLOCATION_ERROR;
     }
 
-    genreNode<int>::unite(newGenreNode, genre1->m_data);
-    genre1->m_data->setUniteCounter(genre1->m_data->getUniteCounter() + 1);
+    const auto& finalroot = genreNode<int>::uniteBySize(genre2->m_data, genre1->m_data);
 
-    genreNode<int>::unite(newGenreNode, genre2->m_data);
-    genre2->m_data->setUniteCounter(genre2->m_data->getUniteCounter() + 1);
+    finalroot->setUniteCounter(finalroot->getUniteCounter() + 1);
 
-    newGenreNode->setSize(genre1->m_data->getNumberOfSongs() + genre2->m_data->getNumberOfSongs());
+    if(finalroot->getData() == genreId1) {
+       genre2->m_data->setUniteCounter(genre2->m_data->getUniteCounter() - genre1->m_data->getUniteCounter() + 1);
+    } else {
+       genre1->m_data->setUniteCounter(genre1->m_data->getUniteCounter() - genre2->m_data->getUniteCounter() + 1);
+    }
+
+    std::static_pointer_cast<genreNode<int>>(finalroot)->setSize(genre1->m_data->getNumberOfSongs() + genre2->m_data->getNumberOfSongs());
+    finalroot->setData(genreId3);
+
+    // Cast finalroot to shared_ptr<genreNode<int>> before inserting
+    m_genreHT.insert(genreId3, std::static_pointer_cast<genreNode<int>>(finalroot));
 
     m_genreHT.remove(genreId1);
     m_genreHT.remove(genreId2);
-
-
-    m_genreHT.insert(genreId3, newGenreNode);    
 
     m_genreHT.insert(genreId1, g1New);
     m_genreHT.insert(genreId2, g2New);
@@ -142,17 +146,21 @@ output_t<int> DSpotify::getNumberOfSongsByGenre(int genreId){
 //Find Root of the songNode(in find uniteCounter must update)
 //Return the uniteCounter of the songNode
 output_t<int> DSpotify::getNumberOfGenreChanges(int songId){
-  if( songId <= 0) return StatusType::INVALID_INPUT;
-const auto& song_node = m_songHT.find(songId);
+    if( songId <= 0) return StatusType::INVALID_INPUT;
+
+    const auto& song_node = m_songHT.find(songId);
+
     if (song_node == nullptr) return StatusType::FAILURE;
+
     auto& songSetNode = song_node->m_data;
-try{
-    songSetNode->findRoot();
-    output_t<int> result(songSetNode-> getUniteCounter());
-    // The findRoot call will update the songSetNode's parent and uniteCounter.
-    // So we can return the uniteCounter directly.
-    return result;
-} catch (const std::bad_alloc&) {
-    return StatusType::ALLOCATION_ERROR;
-}
+
+    try{
+        auto genreSetNode = songSetNode->findRoot();
+        output_t<int> result(genreSetNode-> getUniteCounter() + songSetNode->getUniteCounter());
+        // The findRoot call will update the songSetNode's parent and uniteCounter.
+        // So we can return the uniteCounter directly.
+        return result;
+    } catch (const std::bad_alloc&) {
+        return StatusType::ALLOCATION_ERROR;
+    }
 }

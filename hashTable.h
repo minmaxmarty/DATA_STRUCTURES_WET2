@@ -21,7 +21,7 @@ struct node {
 // ----------------------------------- hashTable ----------------------------------- //
 template <typename K, typename D_ptr>
 class hashTable {
-    const int INITIAL_SIZE = 17;
+    const int INITIAL_SIZE = 97;
     const double RESIZE_FACTOR_UP = 2.0;
     const double RESIZE_FACTOR_DOWN = 0.5;
 
@@ -142,13 +142,17 @@ class setNode : public enable_shared_from_this<setNode<D>> {
     shared_ptr<setNode<D>> m_parent;
 
     int m_uniteCounter = 0;
+    int numberOfSongs = 0; // This is used for genres, songs will not use this field
 
 public:
+    int getNumberOfSongs() const { return numberOfSongs; }
+    void setSize(int size) { numberOfSongs = size; }
+    void addToSize(int size) { numberOfSongs += size; }
 
     explicit setNode(D data) : m_data(data) {}
 
     shared_ptr<setNode<D>> findRoot();
-    void compressAndCalc(shared_ptr<setNode<D>> root, int counter);
+    void compressAndCalc(shared_ptr<setNode<D>> root, int counter, int rootUniteCounter);
 
     static shared_ptr<setNode<D>> uniteBySize(shared_ptr<setNode<D>> A, shared_ptr<setNode<D>> B);
     static shared_ptr<setNode<D>> unite(shared_ptr<setNode<D>> into, shared_ptr<setNode<D>> from);
@@ -159,6 +163,8 @@ public:
     int getUniteCounter() const;
     shared_ptr<setNode<D>> getParent() const;
     void setParent(shared_ptr<setNode<D>> parent);
+
+    void setData(const D& data) { m_data = data; }
 };
 
 template<typename D>
@@ -170,20 +176,22 @@ shared_ptr<setNode<D>> setNode<D>::findRoot() {
         cur = cur->m_parent;
     }
     auto root = cur;
-    compressAndCalc(root, uniteNum);
+    compressAndCalc(root, uniteNum, cur->getUniteCounter());
 
     return root;
 }
 template<typename D>
 
-void setNode<D>::compressAndCalc(shared_ptr<setNode<D>> root, int uniteNum) {
+void setNode<D>::compressAndCalc(shared_ptr<setNode<D>> root, int uniteNum, int rootUniteCounter) {
     shared_ptr<setNode<D>> cur = this->shared_from_this();
     shared_ptr<setNode<D>> next = nullptr;
 
     while (cur->m_parent != nullptr) {
         next = cur->m_parent;
         int oldUniteCounter = cur->getUniteCounter();
-
+        if(next == root) {
+            break;
+        }
         cur->m_parent = root;
         cur->setUniteCounter(uniteNum);
 
@@ -200,7 +208,7 @@ shared_ptr<setNode<D>> setNode<D>::uniteBySize(shared_ptr<setNode<D>> A, shared_
     shared_ptr<setNode<D>> aRoot = A->findRoot();
     shared_ptr<setNode<D>> bRoot = B->findRoot();
 
-    if (aRoot->m_size < bRoot->m_size) {
+    if (aRoot->getNumberOfSongs() < bRoot->getNumberOfSongs()) {
         unite(bRoot, aRoot);
 
         return bRoot;
