@@ -84,18 +84,15 @@ StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
         return StatusType::ALLOCATION_ERROR;
     }
 
-
     const auto& finalroot = genreNode<int>::uniteBySize(genre2->m_data, genre1->m_data);
 
     finalroot->setUniteCounter(finalroot->getUniteCounter() + 1);
 
     if(finalroot->getData() == genreId1) {
-       genre2->m_data->setUniteCounter(genre2->m_data->getUniteCounter() - genre1->m_data->getUniteCounter()+1);
+       genre2->m_data->setUniteCounter(genre2->m_data->getUniteCounter() - genre1->m_data->getUniteCounter() + 1);
     } else {
-       genre1->m_data->setUniteCounter(genre1->m_data->getUniteCounter() - genre2->m_data->getUniteCounter()+1);
+       genre1->m_data->setUniteCounter(genre1->m_data->getUniteCounter() - genre2->m_data->getUniteCounter() + 1);
     }
-
-    finalroot->setUniteCounter(finalroot->getUniteCounter() + 1);
 
     std::static_pointer_cast<genreNode<int>>(finalroot)->setSize(genre1->m_data->getNumberOfSongs() + genre2->m_data->getNumberOfSongs());
     finalroot->setData(genreId3);
@@ -103,16 +100,8 @@ StatusType DSpotify::mergeGenres(int genreId1, int genreId2, int genreId3){
     // Cast finalroot to shared_ptr<genreNode<int>> before inserting
     m_genreHT.insert(genreId3, std::static_pointer_cast<genreNode<int>>(finalroot));
 
-    // genreNode<int>::unite(newGenreNode, genre2->m_data);
-    // genre2->m_data->setUniteCounter(genre2->m_data->getUniteCounter() + 1);
-
-    // newGenreNode->setSize(genre1->m_data->getNumberOfSongs() + genre2->m_data->getNumberOfSongs());
-
     m_genreHT.remove(genreId1);
     m_genreHT.remove(genreId2);
-
-
-    // m_genreHT.insert(genreId3, newGenreNode);    
 
     m_genreHT.insert(genreId1, g1New);
     m_genreHT.insert(genreId2, g2New);

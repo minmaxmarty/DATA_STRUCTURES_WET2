@@ -21,7 +21,7 @@ struct node {
 // ----------------------------------- hashTable ----------------------------------- //
 template <typename K, typename D_ptr>
 class hashTable {
-    const int INITIAL_SIZE = 17;
+    const int INITIAL_SIZE = 97;
     const double RESIZE_FACTOR_UP = 2.0;
     const double RESIZE_FACTOR_DOWN = 0.5;
 
@@ -175,7 +175,6 @@ shared_ptr<setNode<D>> setNode<D>::findRoot() {
         uniteNum += cur->getUniteCounter();
         cur = cur->m_parent;
     }
-    uniteNum += cur->getUniteCounter();
     auto root = cur;
     compressAndCalc(root, uniteNum, cur->getUniteCounter());
 
