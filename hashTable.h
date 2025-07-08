@@ -152,7 +152,7 @@ public:
     explicit setNode(D data) : m_data(data) {}
 
     shared_ptr<setNode<D>> findRoot();
-    void compressAndCalc(shared_ptr<setNode<D>> root, int counter, int rootUniteCounter);
+    void compressAndCalc(shared_ptr<setNode<D>> root, int counter);
 
     static shared_ptr<setNode<D>> uniteBySize(shared_ptr<setNode<D>> A, shared_ptr<setNode<D>> B);
     static shared_ptr<setNode<D>> unite(shared_ptr<setNode<D>> into, shared_ptr<setNode<D>> from);
@@ -176,13 +176,13 @@ shared_ptr<setNode<D>> setNode<D>::findRoot() {
         cur = cur->m_parent;
     }
     auto root = cur;
-    compressAndCalc(root, uniteNum, cur->getUniteCounter());
+    compressAndCalc(root, uniteNum);
 
     return root;
 }
 template<typename D>
 
-void setNode<D>::compressAndCalc(shared_ptr<setNode<D>> root, int uniteNum, int rootUniteCounter) {
+void setNode<D>::compressAndCalc(shared_ptr<setNode<D>> root, int uniteNum) {
     shared_ptr<setNode<D>> cur = this->shared_from_this();
     shared_ptr<setNode<D>> next = nullptr;
 
@@ -222,11 +222,13 @@ shared_ptr<setNode<D>> setNode<D>::uniteBySize(shared_ptr<setNode<D>> A, shared_
 
 
 template<typename D>
-shared_ptr<setNode<D>> setNode<D>::unite(shared_ptr<setNode<D>> into, shared_ptr<setNode<D>> from) {
-    auto intoRoot = into->findRoot();
-    auto fromRoot = from->findRoot();
-
+shared_ptr<setNode<D>> setNode<D>::unite(shared_ptr<setNode<D>> intoRoot, shared_ptr<setNode<D>> fromRoot) {
     fromRoot->setParent(intoRoot);
+
+    intoRoot->setUniteCounter(intoRoot->getUniteCounter() + 1);
+    fromRoot->setUniteCounter(fromRoot->getUniteCounter() - intoRoot->getUniteCounter() + 1);
+
+    intoRoot->addToSize(fromRoot->getNumberOfSongs());
 
     return intoRoot;
 }
@@ -257,23 +259,4 @@ void setNode<D>::setParent(shared_ptr<setNode<D>> parent) {
 }
 
 #endif //HASHTABLE_H
-// ------------------------------------- songNode ------------------------------------- //
-
-template<typename D>
-class songNode : public setNode<D> {
-public:
-    songNode(const D &data) : setNode<D>(data) {}
-};
-
-// ------------------------------------- genreNode ------------------------------------- //
-
-template<typename D>
-class genreNode : public setNode<D> {
-    int numberOfSongs = 0;
-public:
-    genreNode(const D &data) : setNode<D>(data) {}
-    int getNumberOfSongs() const { return numberOfSongs; }
-    void setSize(int size) { numberOfSongs = size; }
-    void addToSize(int size) { numberOfSongs += size; }
-};
 

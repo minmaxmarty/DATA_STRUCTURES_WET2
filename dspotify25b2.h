@@ -22,8 +22,8 @@ using namespace std;
 class DSpotify {
 private:
 
-    hashTable<int, std::shared_ptr<genreNode<int>>> m_genreHT;
-    hashTable<int, std::shared_ptr<songNode<int>>> m_songHT;
+    hashTable<int, std::shared_ptr<setNode<int>>> m_genreHT;
+    hashTable<int, std::shared_ptr<setNode<int>>> m_songHT;
 
     
 public:
